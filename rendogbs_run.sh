@@ -13,16 +13,16 @@ cd ${0%/*}
 #
 # Logging functions
 info() {
-    printf "\e[0;36m%s\e[0m\n" "$*"
+    printf "\e[0;36m[INFO]\e[0m  %s\n" "$*"
 }
 err() {
-    printf "\e[0;31m%s\e[0m\n" "$*"
+    printf "\e[0;31m[ERROR]\e[0m %s\n" "$*"
 }
 warn() {
-    printf "\e[1;33m%s\e[0m\n" "$*"
+    printf "\e[1;33m[WARN]\e[0m  %s\n" "$*"
 }
 ok() {
-    printf "\e[0;32m%s\e[0m\n" "$*"
+    printf "\e[0;32m[OK]\e[0m    %s\n" "$*"
 }
 
 #
