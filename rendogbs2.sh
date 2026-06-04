@@ -111,6 +111,10 @@ PIPELINE_ARGS=
 PLOTS_EXTRA=
 WORKDIR=
 SIZE=
+refok=0
+workdirok=0
+parallelok=0
+sizeok=0
 while [ -n "$1" ] ; do
     case "$1" in
 	--skip-plots)
@@ -126,12 +130,24 @@ while [ -n "$1" ] ; do
 	--workdir)
 	    WORKDIR="$2"
 	    PIPELINE_ARGS="$PIPELINE_ARGS $1 $2"
+	    workdirok=1
 	    shift 2
 	    ;;
 	--size)
 	    SIZE="$2"
 	    PIPELINE_ARGS="$PIPELINE_ARGS $1 $2"
+	    sizeok=1
 	    shift
+	    shift
+	    ;;
+	--parallel)
+	    PIPELINE_ARGS="$PIPELINE_ARGS $1"
+	    parallelok=1
+	    shift
+	    ;;
+	--ref)
+	    PIPELINE_ARGS="$PIPELINE_ARGS $1"
+	    refok=1
 	    shift
 	    ;;
 	--help|-h)
@@ -145,6 +161,17 @@ while [ -n "$1" ] ; do
     esac
 done
 
+# Check mandatory arguments beforehand
+for req in ref workdir parallel size ; do
+    eval "ok=\$${req}ok"
+    if [ $ok -eq 0 ] ; then
+        err "Missing required argument: --${req%ok}"
+        echo "See --help for more information."
+        exit 1
+    fi
+done
+
+# Run the pipeline
 info "Step 1/2 — Running pipeline ..."
 pipeline_start=$(date +%s)
 python3 $PIPELINE ${PIPELINE_ARGS}
