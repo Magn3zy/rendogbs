@@ -5,6 +5,7 @@
 
 # Configuration
 PIPELINE=rendogbs_pipeline.py
+PLOTS=rendogbs_plots.py
 
 # Get to the script directory
 cd ${0%/*}
@@ -15,7 +16,13 @@ info() {
     printf "\e[0;36m%s\e[0m\n" "$*"
 }
 err() {
-    printf "\e[1;31m%s\e[0m\n" "$*"
+    printf "\e[0;31m%s\e[0m\n" "$*"
+}
+warn() {
+    printf "\e[1;33m%s\e[0m\n" "$*"
+}
+ok() {
+    printf "\e[0;32m%s\e[0m\n" "$*"
 }
 
 #
@@ -183,4 +190,42 @@ if [ $pipeline_exit -ne 0 ]; then
     exit $pipeline_exit
 fi
 ok "Pipeline finished in ${pipeline_elapsed}s."
+echo ""
+
+plots_elapsed=0
+
+if [ $SKIP_PLOTS -eq 1 ]; then
+    warn "Plots skipped (--skip-plots)."
+else
+    info "Step 2/2 — Generating plots and rebuilding run_summary.tsv ..."
+    echo ""
+
+    plots_start=$(date +%s)
+    echo python3 "$PLOTS" \
+            --workdir "$WORKDIR" \
+            --size    "$SIZE"    \
+            "${PLOTS_EXTRA}"
+    python3 "$PLOTS" \
+            --workdir "$WORKDIR" \
+            --size    "$SIZE"    \
+            ${PLOTS_EXTRA}
+    plots_exit=$?
+    plots_elapsed=$(( $(date +%s) - plots_start ))
+
+    echo ""
+    if [ $plots_exit -ne 0 ]; then
+        err "Plot generation failed (exit code $plots_exit)."
+        exit $plots_exit
+    fi
+    ok "Plots finished in ${plots_elapsed}s."
+fi
+
+total_elapsed=$(( $(date +%s) - pipeline_start ))
+echo ""
+ok "All done."
+echo ""
+echo "  Pipeline : ${pipeline_elapsed}s"
+[ $SKIP_PLOTS -eq 0 ] && echo "  Plots    : ${plots_elapsed}s"
+echo "  Total    : ${total_elapsed}s"
+echo "  Results  : ${WORKDIR}/results/"
 echo ""

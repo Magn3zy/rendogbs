@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-RUN apk add --no-cache python3
+RUN apk add --no-cache python3 py3-numpy py3-matplotlib
 
 COPY rendogbs_run.sh /home/rendogbs/
 RUN chmod +x /home/rendogbs/rendogbs_run.sh
