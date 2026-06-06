@@ -97,7 +97,7 @@ echo ""
 
 plots_elapsed=0
 
-if [ $SKIP_PLOTS -eq 1 ]; then
+if [ $RUN_PLOTS -eq 0 ]; then
     warn "Plots skipped (--skip-plots)."
 else
     info "Step 2/2 - Generating plots and rebuilding run_summary.tsv ..."
@@ -124,7 +124,9 @@ echo ""
 ok "All done."
 echo ""
 echo "  Pipeline : ${pipeline_elapsed}s"
-[ $SKIP_PLOTS -eq 0 ] && echo "  Plots    : ${plots_elapsed}s"
+if [ $RUN_PLOTS -eq 0 ] ; then
+    echo "  Plots    : ${plots_elapsed}s"
+fi
 echo "  Total    : ${total_elapsed}s"
 echo "  Results  : ${WORKDIR}/results/"
 echo ""
