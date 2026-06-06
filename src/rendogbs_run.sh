@@ -2,13 +2,13 @@
 #
 # Requires only POSIX.1 shell (busybox sh, dash ...)
 #
+# Starts as root, runs scripts as unprivileged user given by LUID/LGID
+# environment variables.
+#
 
 # Configuration
 PIPELINE=rendogbs_pipeline.py
 PLOTS=rendogbs_plots.py
-
-# Get to the script directory
-cd ${0%/*}
 
 ################################################################
 # TEST RUST

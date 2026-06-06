@@ -222,6 +222,8 @@ fi
 # Run the container and pass mappings and arguments to the inner
 # wrapper script.
 docker run \
+       -e LUID=$(id -u) \
+       -e LGID=$(id -g) \
        $VMAPPINGS \
        --rm \
        $IMAGE \
