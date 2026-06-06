@@ -21,8 +21,24 @@ The build process builds a docker image named `rendogbs-v1`
 locally. The image is built from supplied `Dockerfile` in the root of
 this repository.
 
+To build a singularity image, use:
+
+```sh
+make singularity
+```
+
+This creates the `rendogbs-v1.sif` file.
+
+To remove all built images and build artifacts, use:
+
+```sh
+make clean
+```
+
 Running
 -------
+
+To run the docker image a wrapper script is provided:
 
 ```sh
 sh rendogbs.sh [ARGS]
@@ -55,3 +71,12 @@ Based on alpine Linux image it adds necessary Python version and
 libraries used (numpy, matplotlib). It copies all the scripts to the
 runtime directory inside the image (`/home/rendogbs`) and ensures the
 inner wrapper script is used as image entrypoint.
+
+### Inner User Wrapper Script: rendogbs_user.sh
+
+...
+
+### Inner Pipeline Wrapper Script: rendogbs_run.sh
+
+...
+

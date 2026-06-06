@@ -7,7 +7,7 @@
 
 # By default, build the docker image
 .PHONY: all
-all: .docker-built
+all: docker
 
 # Interpreted scripts used in the pipeline(s)
 SCRIPTS=src/endonucleases.py src/rendogbs_pipeline.py	\
@@ -22,6 +22,9 @@ WRAPPERS=src/rendogbs_run.sh src/rendogbs_user.sh
 # details)
 PROGRAMS=src/program1.rs
 
+.PHONY: docker
+docker: .docker-built
+
 # A hidden file representing successful docker image build
 .docker-built: Dockerfile $(SCRIPTS) $(WRAPPERS) $(PROGRAMS)
 	docker build -t rendogbs-v1 .
@@ -30,5 +33,11 @@ PROGRAMS=src/program1.rs
 # A bit crude, but works
 .PHONY: clean
 clean:
-	rm -f .docker-built
+	rm -f .docker-built rendogbs-v1.sif
 	docker image rm rendogbs-v1
+
+.PHONY: singularity
+singularity: rendogbs-v1.sif
+
+rendogbs-v1.sif: docker
+	singularity build rendogbs-v1.sif docker-daemon://rendogbs-v1:latest
