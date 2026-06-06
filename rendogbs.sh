@@ -1,25 +1,32 @@
 #!/bin/sh
 
+# Inner environment
+IHOME=/home/rendogbs
+
 # Handle arguments
 INNER_ARGS=
 WORKDIR=
-REF=
-IREF=
+VMAPPINGS=
 while [ -n "$1" ] ; do
     case "$1" in
 	--workdir)
 	    INNER_ARGS="$INNER_ARGS $1 ./workdir"
 	    WORKDIR=${2}
+	    VMAPPINGS="$VMAPPINGS -v $WORKDIR:$IHOME/workdir"
 	    shift
 	    shift
 	    ;;
 	--ref)
 	    REF=${2}
-	    IREF=${2##*/}
-	    echo REF=$REF IREF=$IREF
-	    INNER_ARGS="$INNER_ARGS $1 $IREF"
+	    VMAPPINGS="$VMAPPINGS -v $REF:$IHOME/${2##*/}"
+	    INNER_ARGS="$1 ${2##*/}"
 	    shift
 	    shift
+	    ;;
+	--combinations-file)
+	    COMBINATIONS_FILE=${2}
+	    ICOMBINATIONS_FILE=${2##*/}
+	    INNER_ARGS="$1 ${##*/}"
 	    ;;
 	*)
 	    INNER_ARGS="$INNER_ARGS $1"
@@ -34,16 +41,14 @@ fi
 
 
 echo docker run \
-       -v $WORKDIR:/home/rendogbs/workdir \
-       -v $REF:/home/rendogbs/$IREF \
+       $VMAPPINGS \
        --rm \
        rendogbs01 \
        $INNER_ARGS
 
 
 docker run \
-       -v $WORKDIR:/home/rendogbs/workdir \
-       -v $REF:/home/rendogbs/$IREF \
+       $VMAPPINGS \
        --rm \
        rendogbs01 \
        $INNER_ARGS
