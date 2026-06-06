@@ -6,8 +6,12 @@
 #
 
 # By default, build the docker image
+.PHONY: default
+default: docker
+
+# Build everything at once
 .PHONY: all
-all: docker
+all: docker singularity
 
 # Interpreted scripts used in the pipeline(s)
 SCRIPTS=src/endonucleases.py src/rendogbs_pipeline.py	\
