@@ -38,7 +38,10 @@ if [ -n "$LUID" ] ; then
     fi
     su rendogbs -c "sh rendogbs_run.sh $*"
 else
-    # Run as root
-    warn "Running as 0:0 (local user not specified!)"
+    # Run as root (or current user - under singularity)
+    if [ -z "$SINGULARITY_CONTAINER" ] ; then
+	# If $SINGULARITY_CONTAINER is set, this is not true
+	warn "Running as 0:0 (local user not specified!)"
+    fi
     /bin/sh rendogbs_run.sh "$@"
 fi

@@ -44,6 +44,8 @@ To run the docker image a wrapper script is provided:
 sh rendogbs.sh [ARGS]
 ```
 
+TODO: singularity wrapper, running manually
+
 Architecture
 ------------
 
@@ -74,9 +76,9 @@ inner wrapper script is used as image entrypoint.
 
 ### Inner User Wrapper Script: rendogbs_user.sh
 
-...
+TODO ...
 
 ### Inner Pipeline Wrapper Script: rendogbs_run.sh
 
-...
+TODO ...
 

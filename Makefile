@@ -39,5 +39,5 @@ clean:
 .PHONY: singularity
 singularity: rendogbs-v1.sif
 
-rendogbs-v1.sif: docker
+rendogbs-v1.sif: .docker-built
 	singularity build rendogbs-v1.sif docker-daemon://rendogbs-v1:latest
