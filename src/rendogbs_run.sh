@@ -10,6 +10,18 @@ PLOTS=rendogbs_plots.py
 # Get to the script directory
 cd ${0%/*}
 
+################################################################
+# TEST RUST
+
+echo Testing compiled rust program...
+./program1
+echo Exit: $?
+echo Testing done.
+echo ================================
+
+#
+################################################################
+
 #
 # Logging functions
 info() {
@@ -124,7 +136,7 @@ echo ""
 ok "All done."
 echo ""
 echo "  Pipeline : ${pipeline_elapsed}s"
-if [ $RUN_PLOTS -eq 0 ] ; then
+if [ $RUN_PLOTS -eq 1 ] ; then
     echo "  Plots    : ${plots_elapsed}s"
 fi
 echo "  Total    : ${total_elapsed}s"
