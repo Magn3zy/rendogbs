@@ -4,13 +4,15 @@ rendogbs pipeline
 Requirements
 ------------
 
+- POSIX.1 shell
+- make
 - docker
 
 Building / Installation
 -----------------------
 
 ```sh
-docker build -t rendogbs01 .
+make
 ```
 
 Running
