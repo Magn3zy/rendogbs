@@ -19,6 +19,11 @@ Runs rendogbs_pipeline.py (digest + analysis), then rendogbs_plots.py
 (TSV summary + figures) sequentially.  Plots start only after the pipeline
 exits successfully.  All output is written to <workdir>/results/.
 
+CONTAINER TYPE (default: --docker)
+  --docker                  Run the docker container (default)
+  --singularity             Run the singularity container rendogbs-v1.sif in this
+                            directory
+
 REQUIRED
   --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
   --workdir        <dir>    Working directory (created if absent)
@@ -114,14 +119,26 @@ ARGSMSK=0
 # Required arguments mask (starts without combinations-file)
 REQAMSK=15
 
+# Default container is docker
+CCMD=docker
+VMOPT=-v
+CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
+
 # Iterate through all command-line options and their arguments
 while [ -n "$1" ] ; do
     case "$1" in
+	--singularity)
+	    CCMD=singularity
+	    IMAGE=rendogbs-v1.sif
+	    VMOPT=-B
+	    CIDMAP=
+	    shift
+	    ;;
 	--workdir)
 	    INNER_ARGS="$INNER_ARGS $1 ./workdir"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS -v $1:$IHOME/workdir"
+		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/workdir"
 		ARGSMSK=$((ARGSMSK | 1))
 		shift
 	    fi
@@ -130,7 +147,7 @@ while [ -n "$1" ] ; do
 	    INNER_ARGS="$1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS -v $1:$IHOME/${1##*/}"
+		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
 		ARGSMSK=$((ARGSMSK | 2))
 		shift
 	    fi
@@ -139,7 +156,7 @@ while [ -n "$1" ] ; do
 	    INNER_ARGS="$1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS -v $1:$IHOME/${1##*/}"
+		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
 		ARGSMSK=$((ARGSMSK | 16))
 		shift
 	    fi
@@ -148,7 +165,7 @@ while [ -n "$1" ] ; do
 	    INNER_ARGS="$1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS -v $1:$IHOME/${1##*/}"
+		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
 		shift
 	    fi
 	    ;;
@@ -221,11 +238,8 @@ fi
 
 # Run the container and pass mappings and arguments to the inner
 # wrapper script.
-docker run \
-       -e LUID=$(id -u) \
-       -e LGID=$(id -g) \
-       $VMAPPINGS \
-       --rm \
-       -i \
-       $IMAGE \
-       $INNER_ARGS
+$CCMD run \
+      $VMAPPINGS \
+      $CIDMAP \
+      $IMAGE \
+      $INNER_ARGS
