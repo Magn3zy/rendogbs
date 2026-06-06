@@ -25,136 +25,49 @@ ok() {
     printf "\e[0;32m[OK]\e[0m    %s\n" "$*"
 }
 
-#
-# Prints usage instructions
-usage() {
-    cat <<'EOF'
-rendogbs  -  In-silico ddRAD/GBS library pipeline
+# Parse command-line arguments, mandatory arguments to the python
+# scripts were checked in the outer wrapper.
 
-Runs rendogbs_pipeline.py (digest + analysis), then rendogbs_plots.py
-(TSV summary + figures) sequentially.  Plots start only after the pipeline
-exits successfully.  All output is written to <workdir>/results/.
+# Inner script arguments are consumed other arguments are passed on to
+# pipeline or plots (or both) subtasks as needed.
 
-REQUIRED
-  --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
-  --workdir        <dir>    Working directory (created if absent)
-  --parallel       <int>    Contigs processed in parallel per batch
-  --size           <range>  Fragment size window, e.g. 200-400 (both inclusive).
-                            Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
-                            always reported; filtered.csv retains only fragments
-                            within [LOW, HIGH].
+# May be disabled by --skip-plots
+RUN_PLOTS=1
 
-COMBINATIONS  (optional, default: fast)
-  --combinations   fast     25 built-in common ddRAD/GBS pairs (default)
-                   all      all ordered enzyme pairs from the dictionary
-                   custom   read from --combinations-file
-  --combinations-file <f>   CSV for custom mode (header line + enzyme_a,enzyme_b rows)
-
-ANNOTATION  (optional)
-  --annotation     <file>   GFF3/GFF/GTF gene annotation (plain or .gz)
-  --te             <file>   RepeatMasker .out TE annotation (plain or .gz)
-
-PLOT OPTIONS  (optional)
-  --chroms         <int>    Longest N contigs treated as chromosomes in
-                            per-chromosome plots (default: 10)
-  --dpi            <int>    Figure resolution in DPI (default: 300)
-  --skip-plots              Run pipeline only, skip plot generation
-
-OTHER
-  -h, --help                Show this help and exit
-
-OUTPUT STRUCTURE
-  workdir/
-    results/
-      contig_lengths.txt          contigs sorted descending by length
-      run_summary.tsv             Excel-ready: one row per combination,
-                                  all bin counts + GC metrics + annotation %
-      EcoRI_MseI/
-        cuts.csv                  all cut sites (accession, position, enzyme)
-        fragments.csv             all adjacent pairs of different enzymes
-        filtered.csv              fragments within --size window
-        distribution.csv          standard 100 bp bins + custom window row
-        gc_metrics.csv            GC statistics for filtered fragments
-        annotation_summary.csv    TE / gene coverage (only with --te / --annotation)
-      AciI_HindIII/
-        ...
-      plots/
-        heatmap_fragment_lengths.png    fragment count heatmap (10 bp bins, log scale)
-        heatmap_chrom_distribution.png  filtered fragments per chromosome (heatmap)
-        bar_chrom_distribution.png      filtered fragments per chromosome (bar chart)
-        gc_distribution.png             GC% per combination: mean +/- SD
-        annotation_coverage.png         annotation category coverage stacked bar
-        size_distributions.png          100 bp bin line plot, user window highlighted
-
-EXAMPLES
-  # Basic run, fast preset, 200-400 bp window
-  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 11 --size 200-400
-
-  # All combinations, with annotation, 24 chromosomes in plots
-  rendogbs.sh --ref genome.fa.gz --workdir ./run1 --parallel 8 --size 150-350 \
-              --combinations all \
-              --annotation genes.gff3.gz --te repeats.out \
-              --chroms 24
-
-  # Custom enzyme pairs, pipeline only
-  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 4 --size 200-500 \
-              --combinations custom --combinations-file my_pairs.txt \
-              --skip-plots
-
-EOF
-}
-
-# Print help if no arguments given
-
-if [ -z "$1" ] ; then
-    usage
-    exit 1
-fi
-
-# Parse command-line arguments, mandatory args are checked in
-# parse_args of rendogbs_pipeline.py
-SKIP_PLOTS=0
+# Passed arguments to both subtasks
 PIPELINE_ARGS=
-PLOTS_EXTRA=
-WORKDIR=
-SIZE=
-refok=0
-workdirok=0
-parallelok=0
-sizeok=0
+PLOTS_ARGS=
+
+# Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
     case "$1" in
 	--skip-plots)
-	    SKIP_PLOTS=1
+	    RUN_PLOTS=0
 	    shift
 	    ;;
 	--chroms|--dpi)
-	    PLOTS_EXTRA="$PLOTS_EXTRA $2 $3"
-	    shift
+	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
 	--workdir)
-	    WORKDIR="$2"
 	    PIPELINE_ARGS="$PIPELINE_ARGS $1 $2"
-	    workdirok=1
-	    shift 2
+	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
+	    shift
+	    shift
 	    ;;
 	--size)
-	    SIZE="$2"
 	    PIPELINE_ARGS="$PIPELINE_ARGS $1 $2"
-	    sizeok=1
+	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
 	--parallel)
 	    PIPELINE_ARGS="$PIPELINE_ARGS $1"
-	    parallelok=1
 	    shift
 	    ;;
 	--ref)
 	    PIPELINE_ARGS="$PIPELINE_ARGS $1"
-	    refok=1
 	    shift
 	    ;;
 	--help|-h)
@@ -168,18 +81,8 @@ while [ -n "$1" ] ; do
     esac
 done
 
-# Check mandatory arguments beforehand
-for req in ref workdir parallel size ; do
-    eval "ok=\$${req}ok"
-    if [ $ok -eq 0 ] ; then
-        err "Missing required argument: --${req%ok}"
-        echo "See --help for more information."
-        exit 1
-    fi
-done
-
 # Run the pipeline
-info "Step 1/2 — Running pipeline ..."
+info "Step 1/2 - Running pipeline ..."
 pipeline_start=$(date +%s)
 python3 $PIPELINE ${PIPELINE_ARGS}
 pipeline_exit=$?
@@ -197,18 +100,14 @@ plots_elapsed=0
 if [ $SKIP_PLOTS -eq 1 ]; then
     warn "Plots skipped (--skip-plots)."
 else
-    info "Step 2/2 — Generating plots and rebuilding run_summary.tsv ..."
+    info "Step 2/2 - Generating plots and rebuilding run_summary.tsv ..."
     echo ""
 
     plots_start=$(date +%s)
     echo python3 "$PLOTS" \
-            --workdir "$WORKDIR" \
-            --size    "$SIZE"    \
-            "${PLOTS_EXTRA}"
+            "${PLOTS_ARGS}"
     python3 "$PLOTS" \
-            --workdir "$WORKDIR" \
-            --size    "$SIZE"    \
-            ${PLOTS_EXTRA}
+            ${PLOTS_ARGS}
     plots_exit=$?
     plots_elapsed=$(( $(date +%s) - plots_start ))
 

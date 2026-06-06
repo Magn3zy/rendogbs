@@ -9,6 +9,91 @@ err() {
     printf "\e[0;31m[ERROR]\e[0m %s\n" "$*"
 }
 
+#
+# Prints usage instructions
+usage() {
+    cat <<'EOF'
+rendogbs  -  In-silico ddRAD/GBS library pipeline
+
+Runs rendogbs_pipeline.py (digest + analysis), then rendogbs_plots.py
+(TSV summary + figures) sequentially.  Plots start only after the pipeline
+exits successfully.  All output is written to <workdir>/results/.
+
+REQUIRED
+  --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
+  --workdir        <dir>    Working directory (created if absent)
+  --parallel       <int>    Contigs processed in parallel per batch
+  --size           <range>  Fragment size window, e.g. 200-400 (both inclusive).
+                            Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
+                            always reported; filtered.csv retains only fragments
+                            within [LOW, HIGH].
+
+COMBINATIONS  (optional, default: fast)
+  --combinations   fast     25 built-in common ddRAD/GBS pairs (default)
+                   all      all ordered enzyme pairs from the dictionary
+                   custom   read from --combinations-file
+  --combinations-file <f>   CSV for custom mode (header line + enzyme_a,enzyme_b rows)
+
+ANNOTATION  (optional)
+  --annotation     <file>   GFF3/GFF/GTF gene annotation (plain or .gz)
+  --te             <file>   RepeatMasker .out TE annotation (plain or .gz)
+
+PLOT OPTIONS  (optional)
+  --chroms         <int>    Longest N contigs treated as chromosomes in
+                            per-chromosome plots (default: 10)
+  --dpi            <int>    Figure resolution in DPI (default: 300)
+  --skip-plots              Run pipeline only, skip plot generation
+
+OTHER
+  -h, --help                Show this help and exit
+
+OUTPUT STRUCTURE
+  workdir/
+    results/
+      contig_lengths.txt          contigs sorted descending by length
+      run_summary.tsv             Excel-ready: one row per combination,
+                                  all bin counts + GC metrics + annotation %
+      EcoRI_MseI/
+        cuts.csv                  all cut sites (accession, position, enzyme)
+        fragments.csv             all adjacent pairs of different enzymes
+        filtered.csv              fragments within --size window
+        distribution.csv          standard 100 bp bins + custom window row
+        gc_metrics.csv            GC statistics for filtered fragments
+        annotation_summary.csv    TE / gene coverage (only with --te / --annotation)
+      AciI_HindIII/
+        ...
+      plots/
+        heatmap_fragment_lengths.png    fragment count heatmap (10 bp bins, log scale)
+        heatmap_chrom_distribution.png  filtered fragments per chromosome (heatmap)
+        bar_chrom_distribution.png      filtered fragments per chromosome (bar chart)
+        gc_distribution.png             GC% per combination: mean +/- SD
+        annotation_coverage.png         annotation category coverage stacked bar
+        size_distributions.png          100 bp bin line plot, user window highlighted
+
+EXAMPLES
+  # Basic run, fast preset, 200-400 bp window
+  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 11 --size 200-400
+
+  # All combinations, with annotation, 24 chromosomes in plots
+  rendogbs.sh --ref genome.fa.gz --workdir ./run1 --parallel 8 --size 150-350 \
+              --combinations all \
+              --annotation genes.gff3.gz --te repeats.out \
+              --chroms 24
+
+  # Custom enzyme pairs, pipeline only
+  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 4 --size 200-500 \
+              --combinations custom --combinations-file my_pairs.txt \
+              --skip-plots
+
+EOF
+}
+
+# Print help if no arguments given
+if [ -z "$1" ] ; then
+    usage
+    exit 1
+fi
+
 ################################
 # Handle arguments
 
@@ -109,6 +194,10 @@ while [ -n "$1" ] ; do
 done
 
 # Report all errors and exit if at least one popped up
+if [ $((ARGSMSK & REQAMSK)) -ne $REQAMSK ] ; then
+    # Display usage _above_ errors (it is quite long)
+    usage
+fi
 if [ $((ARGSMSK & 1)) -eq 0 ] ; then
     err "Missing required argument: --workdir"
 fi
@@ -125,6 +214,7 @@ if [ $((ARGSMSK & 16)) -lt $((REQAMSK & 16)) ] ; then
     err "--combinations custom requires --combinations-file <path>"
 fi
 if [ $((ARGSMSK & REQAMSK)) -ne $REQAMSK ] ; then
+    # Although usage is displayed above, this is kinda standard
     echo "See --help for more information."
     exit 1
 fi
