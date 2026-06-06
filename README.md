@@ -71,12 +71,65 @@ sh rendogbs.sh --singularity [ARGS]
 Running the wrapper script with the `--help` argument will print usage
 instructions.
 
+Running Examples
+----------------
+
+For all the examples we assume a `run2` subdirectory in the current
+directory will be used as a workdir and the `data` subdirectory will
+contain a reference file `GCF_000001735.3_TAIR10_genomic.fna.gz`. All
+the examples will run 5 parallel threads and use size 200-400.
+
+### Running the Docker Image
+
+```sh
+```
+
+### Running the Singularity Image
+
+```sh
+```
+
 ### Running the Docker Image Manually
 
 It is possible, but *strongly* discouraged, to run the docker image
 manually.
 
 ### Running the Singularity Container Manually
+
+There are two options. The first option is to use the
+`SINGULARITY_BIND` environment variable to bind files and directories
+inside the container and run the container file directly as it is a
+valid executable:
+
+```sh
+SINGULARITY_BIND=./run2:/home/rendogbs/run2,./data/GCF_000001735.3_TAIR10_genomic.fna.gz:/home/rendogbs/GCF_000001735.3_TAIR10_genomic.fna.gz \
+  ./rendogbs-v1.sif \
+    --ref ./GCF_000001735.3_TAIR10_genomic.fna.gz \
+	--workdir ./run2 \
+	--parallel 5 \
+	--size 200-400 
+```
+
+As we can see there is no need to bind the whole `data` subdirectory
+and it is easier to bind the reference file directly in the
+`/home/rendogbs` runtime directory.
+
+The other option is to use the `singularity run` command to provide
+the bindings through the `-B` option:
+
+```sh
+singularity run \
+  -B ./run2:/home/rendogbs/run2 \
+  -B ./data/GCF_000001735.3_TAIR10_genomic.fna.gz:/home/rendogbs/GCF_000001735.3_TAIR10_genomic.fna.gz \
+  ./rendogbs-v1.sif \
+  --ref ./GCF_000001735.3_TAIR10_genomic.fna.gz \
+  --workdir ./run2 \
+  --parallel 5 \
+  --size 200-400
+```
+
+These two options are equivalent.
+
 
 Architecture
 ------------
