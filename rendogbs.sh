@@ -226,5 +226,6 @@ docker run \
        -e LGID=$(id -g) \
        $VMAPPINGS \
        --rm \
+       -i \
        $IMAGE \
        $INNER_ARGS
