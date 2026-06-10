@@ -10,6 +10,8 @@
 PIPELINE=rendogbs_pipeline.py
 PLOTS=rendogbs_plots.py
 
+bedtools --help
+
 #
 # Logging functions
 info() {
