@@ -133,7 +133,7 @@ FAST_COMBOS = [
     ("EcoRI",   "NlaIII"),
     ("PstI",    "MspI"),
     ("PstI",    "MseI"),
-    ("PstI",    "TaqI-v2"),
+    ("PstI",    "TaqI"),
     ("PstI",    "MboI"),
     ("PstI",    "HpaII"),
     ("SbfI",    "MspI"),
