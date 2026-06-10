@@ -10,18 +10,6 @@
 PIPELINE=rendogbs_pipeline.py
 PLOTS=rendogbs_plots.py
 
-################################################################
-# TEST RUST
-
-echo Testing compiled rust program...
-./program1
-echo Exit: $?
-echo Testing done.
-echo ================================
-
-#
-################################################################
-
 #
 # Logging functions
 info() {

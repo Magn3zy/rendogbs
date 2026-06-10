@@ -10,11 +10,12 @@
 
 FROM alpine:latest AS build
 
-RUN apk add --no-cache rust
+RUN apk add --no-cache rust cargo
 
-COPY ./src/program1.rs /home/build/
+COPY ./src/main.rs /home/build/
+COPY ./src/Cargo.toml /home/build/
 
-RUN cd /home/build ; rustc program1.rs
+RUN cd /home/build ; cargo build --release
 
 ################################################################
 # Runtime Stage
@@ -32,6 +33,6 @@ COPY ./src/rendogbs_pipeline.py /home/rendogbs/
 COPY ./src/rendogbs_plots.py /home/rendogbs/
 COPY ./src/endonucleases.py /home/rendogbs/
 
-COPY --from=build /home/build/program1 /home/rendogbs/
+COPY --from=build /home/build/target/release/rendogbs_finder /home/rendogbs/
 
 ENTRYPOINT ["/home/rendogbs/rendogbs_user.sh"]

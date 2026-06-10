@@ -24,7 +24,7 @@ WRAPPERS=src/rendogbs_run.sh src/rendogbs_user.sh
 # Compiled programs (need to be compiled during build stage and then
 # included in the final image only in binary form - see Dockerfile for
 # details)
-PROGRAMS=src/program1.rs
+PROGRAMS=src/main.rs src/Cargo.toml
 
 .PHONY: docker
 docker: .docker-built
