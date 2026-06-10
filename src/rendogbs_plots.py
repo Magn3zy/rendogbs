@@ -62,17 +62,36 @@ def discover_combos(results_dir):
     return combos
 
 # nacteni souboru a vraceni seznamu radku, kontrola existence souboru, vraci vsechny radky jako seznam slovniku {"sloupec1":"hodnota1", ...},{"sloupec1":"hodnota2", ...} DictReader prevod kazdeho radku na slovnik
+#
+# Creates a closure counting how many times the inner function was
+# called. The inner function returns any value unchanged and
+# increments count. If count modulo period is zero, prints count as a
+# side-effect.
+def make_idx_printer(path, period):
+    idx = 0
+    def the_printer(v):
+        nonlocal idx
+        if (idx % period) == 0:
+            print(f"{path}: {idx}")
+        idx = idx + 1
+        return v
+    return the_printer
+
 def read_csv_rows(path):
     if not os.path.isfile(path):
         return [] # neexistujici soubor
     with open(path, newline="") as fh:
-        return list(csv.DictReader(fh))
+        # nacteni distribution.csv a prevede na slovnik z csv po binech, preskakuje poskozene radky
+        logidx = make_idx_printer(path, 10000)
+        return [logidx(d) for d in csv.DictReader(fh)]
 
-# nacteni distribution.csv a prevede na slovnik z csv po binech, preskakuje poskozene radky
 def read_distribution_csv(path):
     d = {}
-    for row in read_csv_rows(path):
+    lst = read_csv_rows(path)
+    print(lst)
+    for row in lst:
         try:
+            print(row)
             d[row["length_range"]] = int(row["count"])
         except (KeyError, ValueError):
             pass

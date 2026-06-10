@@ -4,6 +4,11 @@
 IHOME=/home/rendogbs
 IMAGE=rendogbs-v1
 
+# Outer environment: current working directory and script directory
+wd=`pwd`
+sd=`dirname $0`
+sd=`readlink -f $sd`
+
 # Nice logging
 err() {
     printf "\e[0;31m[ERROR]\e[0m %s\n" "$*"
@@ -120,25 +125,46 @@ ARGSMSK=0
 REQAMSK=15
 
 # Default container is docker
-CCMD=docker
+CCMD=`which docker`
 VMOPT=-v
 CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
+PBSWRAP=
+PBSEND=
+PBSOPTS=
 
 # Iterate through all command-line options and their arguments
 while [ -n "$1" ] ; do
     case "$1" in
 	--singularity)
-	    CCMD=singularity
-	    IMAGE=rendogbs-v1.sif
+	    CCMD=`which singularity`
+	    IMAGE="$sd/rendogbs-v1.sif"
 	    VMOPT=-B
 	    CIDMAP=
 	    shift
 	    ;;
+	--docker)
+	    CCMD=`which docker`
+	    IMAGE=rendogbs-v1
+	    VMOPT=v
+	    CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
+	    shift
+	    ;;
+	--qsub)
+	    PBSWRAP="qsub -I"
+	    PBSEND="--"
+	    shift
+	    ;;
+	--limits)
+	    shift
+	    PBSOPTS="$PBSOPTS -l $1"
+	    shift
+	    ;;
 	--workdir)
+	    OWORKDIR=`readlink -f "$wd/$2"`
 	    INNER_ARGS="$INNER_ARGS $1 ./workdir"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/workdir"
+		VMAPPINGS="$VMAPPINGS $VMOPT $OWORKDIR:$IHOME/workdir"
 		ARGSMSK=$((ARGSMSK | 1))
 		shift
 	    fi
@@ -147,7 +173,8 @@ while [ -n "$1" ] ; do
 	    INNER_ARGS="$INNER_ARGS $1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
+		OREF=`readlink -f "$wd/$1"`
+		VMAPPINGS="$VMAPPINGS $VMOPT $OREF:$IHOME/${1##*/}"
 		ARGSMSK=$((ARGSMSK | 2))
 		shift
 	    fi
@@ -156,7 +183,8 @@ while [ -n "$1" ] ; do
 	    INNER_ARGS="$INNER_ARGS $1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
+		OCFILE=`readlink -f "$wd/$1"`
+		VMAPPINGS="$VMAPPINGS $VMOPT $OCFILE:$IHOME/${1##*/}"
 		ARGSMSK=$((ARGSMSK | 16))
 		shift
 	    fi
@@ -165,7 +193,8 @@ while [ -n "$1" ] ; do
 	    INNER_ARGS="$INNER_ARGS $1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
-		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
+		OFILE=`readlink -f "$wd/$1"`
+		VMAPPINGS="$VMAPPINGS $VMOPT $OFILE:$IHOME/${1##*/}"
 		shift
 	    fi
 	    ;;
@@ -238,7 +267,7 @@ fi
 
 # Run the container and pass mappings and arguments to the inner
 # wrapper script.
-$CCMD run \
+$PBSWRAP $PBSOPTS $PBSEND $CCMD run \
       $VMAPPINGS \
       $CIDMAP \
       $IMAGE \
