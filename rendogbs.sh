@@ -131,6 +131,7 @@ CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
 PBSWRAP=
 PBSEND=
 PBSOPTS=
+PBSNAME="-N rendogbs"
 
 # Iterate through all command-line options and their arguments
 while [ -n "$1" ] ; do
@@ -150,13 +151,22 @@ while [ -n "$1" ] ; do
 	    shift
 	    ;;
 	--qsub)
-	    PBSWRAP="qsub -I"
+	    PBSWRAP="qsub"
 	    PBSEND="--"
 	    shift
 	    ;;
-	--limits)
+	--limits|-l)
 	    shift
 	    PBSOPTS="$PBSOPTS -l $1"
+	    shift
+	    ;;
+	--interactive|-I)
+	    PBSOPTS="$PBSOBTS -I"
+	    shift
+	    ;;
+	--name|-N)
+	    shift
+	    PBSNAME="-N $1"
 	    shift
 	    ;;
 	--workdir)
@@ -265,9 +275,17 @@ if [ $((ARGSMSK & REQAMSK)) -ne $REQAMSK ] ; then
     exit 1
 fi
 
+# Ensure that if someone does not specify --qsub, the PBS options are
+# not applied
+if [ -z "$PBSWRAP" ] ; then
+    PBSEND=
+    PBSOPTS=
+    PBSNAME=
+fi
+
 # Run the container and pass mappings and arguments to the inner
 # wrapper script.
-$PBSWRAP $PBSOPTS $PBSEND $CCMD run \
+$PBSWRAP $PBSOPTS $PBSNAME $PBSEND $CCMD run \
       $VMAPPINGS \
       $CIDMAP \
       $IMAGE \
