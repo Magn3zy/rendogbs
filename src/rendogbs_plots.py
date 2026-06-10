@@ -142,6 +142,7 @@ def build_run_summary(results_dir, combos, size_low, size_high):
             os.path.join(results_dir, combo, "annotation_summary.csv"))
         all_ann_cats.update(ann.keys())
     all_ann_cats = sorted(all_ann_cats)
+    print(f"  [summary] annotation categories: {', '.join(all_ann_cats)}")
 
     std_labels   = [f"{b}-{b+99}" for b in range(0, 1000, 100)] + [">=1000"]
     custom_lbl   = f"custom_{size_low}-{size_high}"
@@ -155,6 +156,7 @@ def build_run_summary(results_dir, combos, size_low, size_high):
            "gc_min_pct", "gc_max_pct", "gc_n_fragments"]
         + [f"ann_pct_{c}" for c in all_ann_cats]
     )
+    print(f"  [summary] {len(header)} columns")
 
     rows = []
     for combo in combos:
@@ -166,6 +168,7 @@ def build_run_summary(results_dir, combos, size_low, size_high):
         gc     = read_gc_metrics_csv(os.path.join(d, "gc_metrics.csv"))
         ann    = read_annotation_summary_csv(
                      os.path.join(d, "annotation_summary.csv"))
+        print(f"  [summary] {combo}")
 
         rows.append(
             [combo, len(cuts), len(frags), len(filt)]
@@ -179,12 +182,14 @@ def build_run_summary(results_dir, combos, size_low, size_high):
                gc.get("n_fragments",   0)]
             + [ann.get(c, "n/a") for c in all_ann_cats]
         )
+        print(f"  [summary] {len(rows)} rows")
 
     tsv_path = os.path.join(results_dir, "run_summary.tsv")
     with open(tsv_path, "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
         w.writerow(header)
         w.writerows(rows)
+        print(f"  [summary] {len(rows)} rows written")
 
     print(f"  [tsv]  run_summary.tsv -> {tsv_path}")
 
