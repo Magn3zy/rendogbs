@@ -82,7 +82,7 @@ def read_csv_rows(path):
         return [] # neexistujici soubor
     with open(path, newline="") as fh:
         # nacteni distribution.csv a prevede na slovnik z csv po binech, preskakuje poskozene radky
-        logidx = make_idx_printer(path, 10000)
+        logidx = make_idx_printer(path, 100000)
         return [logidx(d) for d in csv.DictReader(fh)]
 
 def read_distribution_csv(path):
