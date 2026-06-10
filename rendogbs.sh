@@ -144,7 +144,7 @@ while [ -n "$1" ] ; do
 	    fi
 	    ;;
 	--ref)
-	    INNER_ARGS="$1 ${2##*/}"
+	    INNER_ARGS="$INNER_ARGS $1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
 		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
@@ -153,7 +153,7 @@ while [ -n "$1" ] ; do
 	    fi
 	    ;;
 	--combinations-file)
-	    INNER_ARGS="$1 ${2##*/}"
+	    INNER_ARGS="$INNER_ARGS $1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
 		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
@@ -162,7 +162,7 @@ while [ -n "$1" ] ; do
 	    fi
 	    ;;
 	--annotation|--te)
-	    INNER_ARGS="$1 ${2##*/}"
+	    INNER_ARGS="$INNER_ARGS $1 ${2##*/}"
 	    shift
 	    if [ -n "$1" ] ; then
 		VMAPPINGS="$VMAPPINGS $VMOPT $1:$IHOME/${1##*/}"
@@ -191,7 +191,7 @@ while [ -n "$1" ] ; do
 	    ;;
 	--combinations)
 	    if [ -n "$2" ] ; then
-		INNER_ARGS="$1 $2"
+		INNER_ARGS="$INNER_ARGS $1 $2"
 		if [ "$2" = "custom" ] ; then
 		    # Make --combinations-file mandatory for custom
 		    # combinations
