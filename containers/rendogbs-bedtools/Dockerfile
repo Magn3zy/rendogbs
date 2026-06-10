@@ -9,7 +9,7 @@
 # Build Stage - bedtools
 
 FROM alpine:3.18
-RUN apk add --no-cache bash build-base zlib-dev bzip2-dev xz-dev python3
+RUN apk add bash build-base zlib-dev bzip2-dev xz-dev python3
 
 RUN mkdir /home/build
 

@@ -1,6 +1,5 @@
 *~
 __pycache__
-.docker-built
+.docker*built
 *.sif
 .DS_Store
-.docker-bedtools-built
