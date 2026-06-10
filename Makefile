@@ -14,8 +14,9 @@ default: docker
 all: docker singularity
 
 # Interpreted scripts used in the pipeline(s)
-SCRIPTS=src/endonucleases.py src/rendogbs_pipeline.py	\
-	src/rendogbs_plots.py
+SCRIPTS=src/endonucleases.py src/rendogbs_pipeline.py		\
+	src/rendogbs_plots.py src/combination_processing.py	\
+	enzymes.csv
 
 # Wrappers needed for running in docker - the outer wrapper
 # "rendogbs.sh" is NOT a dependency of the image!

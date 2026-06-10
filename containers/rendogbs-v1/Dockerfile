@@ -26,15 +26,16 @@ FROM alpine:latest
 
 RUN apk add --no-cache python3 py3-numpy py3-matplotlib
 
-COPY ./src/rendogbs_user.sh /home/rendogbs/
+COPY src/rendogbs_user.sh /home/rendogbs/
 RUN chmod +x /home/rendogbs/rendogbs_user.sh
 
-COPY ./src/rendogbs_run.sh /home/rendogbs/
+COPY src/rendogbs_run.sh /home/rendogbs/
 
-COPY ./src/rendogbs_pipeline.py /home/rendogbs/
-COPY ./src/rendogbs_plots.py /home/rendogbs/
-COPY ./src/endonucleases.py /home/rendogbs/
-COPY ./src/enzymes.csv /home/rendogbs/
+COPY src/combination_processing.py /home/rendogbs/
+COPY src/rendogbs_pipeline.py /home/rendogbs/
+COPY src/rendogbs_plots.py /home/rendogbs/
+COPY src/endonucleases.py /home/rendogbs/
+COPY src/enzymes.csv /home/rendogbs/
 
 COPY --from=build /home/build/target/release/rendogbs_finder /home/rendogbs/
 COPY --from=rendogbs-bedtools:latest /home/build/bedtools2/bin/bedtools /usr/bin/bedtools
