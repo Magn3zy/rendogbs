@@ -61,8 +61,7 @@ def discover_combos(results_dir):
             combos.append(entry.name) # kandidatni podslozka je ta co ma soubor fragments.csv
     return combos
 
-# nacteni souboru a vraceni seznamu radku, kontrola existence souboru, vraci vsechny radky jako seznam slovniku {"sloupec1":"hodnota1", ...},{"sloupec1":"hodnota2", ...} DictReader prevod kazdeho radku na slovnik
-#
+# Dominik - test cela funkce pridana
 # Creates a closure counting how many times the inner function was
 # called. The inner function returns any value unchanged and
 # increments count. If count modulo period is zero, prints count as a
@@ -77,21 +76,27 @@ def make_idx_printer(path, period):
         return v
     return the_printer
 
+# nacteni souboru a vraceni seznamu radku, kontrola existence souboru, vraci vsechny radky jako seznam slovniku {"sloupec1":"hodnota1", ...},{"sloupec1":"hodnota2", ...} DictReader prevod kazdeho radku na slovnik
 def read_csv_rows(path):
     if not os.path.isfile(path):
         return [] # neexistujici soubor
     with open(path, newline="") as fh:
+        ### odstranil Dominik: return list(csv.DictReader(fh))
+        #Dominik pridal
         # nacteni distribution.csv a prevede na slovnik z csv po binech, preskakuje poskozene radky
-        logidx = make_idx_printer(path, 100000)
+        logidx = make_idx_printer(path, 10000)
         return [logidx(d) for d in csv.DictReader(fh)]
 
+# nacteni distribution.csv a prevede na slovnik z csv po binech, preskakuje poskozene radky
 def read_distribution_csv(path):
     d = {}
+    # odstranil Dominik: for row in read_csv_rows(path):
+    # Pridal 3 radky Dominik
     lst = read_csv_rows(path)
     print(lst)
     for row in lst:
         try:
-            print(row)
+            print(row) # pridal Dominik pro kontrolu
             d[row["length_range"]] = int(row["count"])
         except (KeyError, ValueError):
             pass
@@ -308,20 +313,18 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms): #zadani p
     ax2.legend(loc="upper right", fontsize=7, ncol=max(1, len(combos) // 8), bbox_to_anchor=(1.01, 1), borderaxespad=0) # ukotveni legendy a vytvoreni
     save(fig2, plots_dir, "bar_chrom_distribution") # ulozeni obrazku
 
-# GC content distribution - One bar per combination: mean GC% ± 1 SD, whiskers = min/max, diamond = median. Reads gc_metrics.csv (summary stats computed by the pipeline for filtered fragments only).
+# GC content graf pro každou kombinaci
+def plot_gc_distribution(results_dir, combos, plots_dir): #zadani parametru - slozka s data, kombinace enzymu, slozka pro ulozeni obrazku
+    labels  = [] #kombinace enzymu a_b
+    means   = [] #prumer GC
+    medians = [] #median GC
+    stds    = [] #smerodatna odchylka
+    mins_   = [] #minimum
+    maxs_   = [] #maximum
 
-def plot_gc_distribution(results_dir, combos, plots_dir):
-    labels  = []
-    means   = []
-    medians = []
-    stds    = []
-    mins_   = []
-    maxs_   = []
-
-    for combo in combos:
-        gc = read_gc_metrics_csv(
-            os.path.join(results_dir, combo, "gc_metrics.csv"))
-        if not gc or gc.get("gc_mean_pct") == "n/a":
+    for combo in combos: # pro kazdou kombinaci
+        gc = read_gc_metrics_csv(os.path.join(results_dir, combo, "gc_metrics.csv")) # pro kazdou kombinaci nacteni gc_metrics.csv, cesta
+        if not gc or gc.get("gc_mean_pct") == "n/a": # pokud nejsou data preskoc
             continue
         try:
             labels.append(combo)
@@ -330,85 +333,73 @@ def plot_gc_distribution(results_dir, combos, plots_dir):
             stds.append(float(gc["gc_std_pct"]))
             mins_.append(float(gc["gc_min_pct"]))
             maxs_.append(float(gc["gc_max_pct"]))
-        except (KeyError, ValueError):
+        except (KeyError, ValueError): # pokud nejsou data preskoc a vypis varovani
             continue
 
-    if not labels:
+    if not labels: # pokud nejsou data preskoc a vypis varovani
         print("  [WARN] GC plot: no gc_metrics.csv data found, skipping.")
         return
 
-    n = len(labels)
-    fig_w = max(8, n * 0.45 + 2)
-    fig, ax = plt.subplots(figsize=(fig_w, 5))
-    x = np.arange(n)
+    n = len(labels) # pocet kombinaci
+    fig_w = max(8, n * 0.45 + 2) # sirka grafu
+    fig, ax = plt.subplots(figsize=(fig_w, 5)) 
+    x = np.arange(n) # pozice kombinaci
 
-    ax.bar(x, [s * 2 for s in stds],
-           bottom=[m - s for m, s in zip(means, stds)],
-           width=0.55, color="#4393c3", alpha=0.6, label="mean ± 1 SD")
-    ax.scatter(x, means,   color="#2166ac", zorder=5, s=40, label="mean")
-    ax.scatter(x, medians, color="#d6604d", zorder=5, s=40,
-               marker="D", label="median")
-    for i in range(n):
-        ax.plot([x[i], x[i]], [mins_[i], maxs_[i]],
-                color="grey", linewidth=1.0, zorder=3)
+    ax.bar(x, [s * 2 for s in stds], bottom=[m - s for m, s in zip(means, stds)],
+           width=0.55, color="#4393c3", alpha=0.6, label="mean ± 1 SD") # vykresleni sloupcu, pozice, vyska sloupce dle odchylky, sirka sloupce, legenda
+    ax.scatter(x, means,   color="#2166ac", zorder=5, s=40, label="mean") # bodovy graf pro prumer, pozice, vykresleni nad ostatnimi prvky, velikost bodu
+    ax.scatter(x, medians, color="#d6604d", zorder=5, s=40, marker="D", label="median") # bodovy graf pro median, pozice, vykresleni nad ostatnimi prvky, velikost bodu, nad sloupci, diamant ikonka
+    for i in range(n): # pro kazdou kombinaci
+        ax.plot([x[i], x[i]], [mins_[i], maxs_[i]], color="grey", linewidth=1.0, zorder=3) # vykkresleni cary od minima po maximum, pod body
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=55, ha="right",
-                       fontsize=max(6, min(9, 120 // n)))
-    ax.set_ylabel("GC content (%)")
-    ax.set_title(
-        "GC content of filtered fragments — mean ± SD (whiskers = min/max)")
-    ax.legend(loc="upper right", fontsize=8)
-    ax.yaxis.set_major_formatter(
-        ticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
-    save(fig, plots_dir, "gc_distribution")
+    ax.set_xticks(x) # pozice popisku kombinaci
+    ax.set_xticklabels(labels, rotation=55, ha="right", fontsize=max(6, min(9, 120 // n))) # nazvy kombinaci z labels, rotace, zarovnani, automaticka velikost písma
+    ax.set_ylabel("GC content (%)") # popisek y osy
+    ax.set_title("GC content of filtered fragments — mean ± SD (whiskers = min/max)")
+    ax.legend(loc="upper right", fontsize=8) # legenda umisteni
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:.0f}%")) # formatovani procent popisku
+    save(fig, plots_dir, "gc_distribution") # ulozeni obrazku
 
-#  Annotation coverage stacked horizontal bar. categories (TE classes, gene features), values = % of filtered fragment bases overlapping that category.
+#  annotation coverage graf - to be done: prepocet neanotonovanych useku genomu v jinem scriptu a implementovat sem a upravit velikost grafu (upravena, spis kontrolovat)
 def plot_annotation_coverage(results_dir, combos, plots_dir):
-    all_cats  = []
-    combo_ann = {}
+    all_cats  = [] # vypsani kategorii z anotace a te anotace
+    combo_ann = {} # anotacni statistiky pro kazdou kombinace slovnik 
 
-    for combo in combos:
-        ann = read_annotation_summary_csv(
-            os.path.join(results_dir, combo, "annotation_summary.csv"))
+    for combo in combos: # pro kazdou kombinaci
+        ann = read_annotation_summary_csv(os.path.join(results_dir, combo, "annotation_summary.csv")) # nacte annotation_summary.csv a ulozi do slovniku
         if ann:
-            combo_ann[combo] = ann
-            for c in ann:
-                if c not in all_cats:
-                    all_cats.append(c)
+            combo_ann[combo] = ann # musi byt data jinak false
+            for c in ann: 
+                if c not in all_cats: 
+                    all_cats.append(c) # pridani kategorie
 
     if not combo_ann:
         print("  [WARN] annotation plot: no annotation_summary.csv found, "
               "skipping.")
-        return
+        return # varovani pri nenalezeni kombinace
 
-    all_cats = sorted(all_cats)
-    active   = [c for c in combos if c in combo_ann]
-    n        = len(active)
-    colours  = plt.cm.tab20(np.linspace(0, 1, max(len(all_cats), 1)))
-    cat_col  = {c: colours[i] for i, c in enumerate(all_cats)}
+    all_cats = sorted(all_cats) # sezazeni kategorii anotace
+    active   = [c for c in combos if c in combo_ann] # kombinace ktere maji anotace vezmu pouze
+    n        = len(active) # pocet kombinaci
+    colours  = plt.cm.tab20(np.linspace(0, 1, max(len(all_cats), 1))) # barvy 20 rozlisitelnych a intenzity od 0 do 1 dle poctu rovnomerne rozdelene
+    cat_col  = {c: colours[i] for i, c in enumerate(all_cats)} # slovnik barev a kategorii anotace
 
-    fig_h = max(4, n * 0.45 + 1.5)
-    fig, ax = plt.subplots(figsize=(12, fig_h))
+    fig_h = max(4, n * 0.45 + 1.5) # vyska grafu dle poctu kombinaci
+    fig, ax = plt.subplots(figsize=(6, fig_h)) # vytvoreni grafu 
 
-    for i, combo in enumerate(active):
-        ann  = combo_ann[combo]
-        left = 0.0
-        for cat in all_cats:
+    for i, combo in enumerate(active): # pro kazdou aktivni kombinaci
+        ann  = combo_ann[combo] # anotacni statistiky
+        left = 0.0 # levy okraj pocatek, a pak posun dalsiho
+        for cat in all_cats: # pro jednotlivou kategorii
             val = ann.get(cat, 0.0)
-            if val > 0:
-                ax.barh(i, val, left=left, color=cat_col[cat],
-                        height=0.65,
-                        label=cat if i == 0 else "")
+            if val > 0: # nenulove hodnoty
+                ax.barh(i, val, left=left, color=cat_col[cat], height=0.65, label=cat if i == 0 else "") # vykresleni kategorii, kde zacina segment, barva prislusne kategorie, vyska sloupce, legenda u prvniho sloupce pomoci else ""
                 if val >= 1.5:
-                    ax.text(left + val / 2, i, f"{val:.1f}",
-                            va="center", ha="center", fontsize=6,
-                            color="white")
-                left += val
+                    ax.text(left + val / 2, i, f"{val:.1f}", va="center", ha="center", fontsize=6, color="white") # popisek uvnitr kategorie pouze pokud je dost siroke pole, zarovnani na stred
+                left += val # posun na dalsi segment aby se neprekreslovali
 
     ax.set_yticks(np.arange(n))
-    ax.set_yticklabels(active,
-                       fontsize=max(6, min(9, 120 // max(n, 1))))
+    ax.set_yticklabels(active, fontsize=max(6, min(9, 120 // max(n, 1))))
     ax.set_xlabel("% of filtered fragment bases")
     ax.set_title("Annotation coverage of filtered fragments")
     ax.set_xlim(0, 105)
