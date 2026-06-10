@@ -26,28 +26,18 @@ import csv
 import argparse
 import sys
 from collections import defaultdict
+import numpy as np
+import matplotlib
+matplotlib.use("Agg") # no GUI
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+from matplotlib.colors import LogNorm
+import matplotlib.patches as mpatches
 
-#  Dependency check
-
-try:
-    import numpy as np
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import matplotlib.ticker as ticker
-    from matplotlib.colors import LogNorm
-    import matplotlib.patches as mpatches
-except ImportError as e:
-    print(f"[ERROR] Missing dependency: {e}")
-    print("        Install with:  pip install matplotlib numpy")
-    sys.exit(1)
-
-
-#  Shared style
-
+# globalni styl grafu
 PALETTE = "viridis"
 FIG_EXT = "png"
-_DPI    = 300   # overridden by --dpi
+_DPI    = 300   # jde zmenit --dpi
 
 plt.rcParams.update({
     "font.family":    "DejaVu Sans",
@@ -57,31 +47,28 @@ plt.rcParams.update({
     "ytick.labelsize": 9,
 })
 
-#  Helpers
-
+#  Pomocna funkce - oddeleni range ktere analyzujeme pro knihovnu (200, 400)
 def parse_size_range(s):
     parts = s.split("-")
-    if len(parts) != 2:
-        raise ValueError(f"Expected LOW-HIGH, got: {s!r}")
     return int(parts[0]), int(parts[1])
 
-# Return sorted list of combination names found as sub-directories of results_dir that contain a fragments.csv file.
+# vraci list serazenych kombinaci enzymu z nazev podslozek
 def discover_combos(results_dir):
     combos = []
     for entry in sorted(os.scandir(results_dir), key=lambda e: e.name):
         if entry.is_dir() and os.path.isfile(
                 os.path.join(entry.path, "fragments.csv")):
-            combos.append(entry.name)
+            combos.append(entry.name) # kandidatni podslozka je ta co ma soubor fragments.csv
     return combos
 
-
+# nacteni souboru a vraceni seznamu radku, kontrola existence souboru, vraci vsechny radky jako seznam slovniku {"sloupec1":"hodnota1", ...},{"sloupec1":"hodnota2", ...} DictReader prevod kazdeho radku na slovnik
 def read_csv_rows(path):
     if not os.path.isfile(path):
-        return []
+        return [] # neexistujici soubor
     with open(path, newline="") as fh:
         return list(csv.DictReader(fh))
 
-
+# nacteni distribution.csv a prevede na slovnik z csv po binech, preskakuje poskozene radky
 def read_distribution_csv(path):
     d = {}
     for row in read_csv_rows(path):
@@ -91,12 +78,12 @@ def read_distribution_csv(path):
             pass
     return d
 
-
+# nacteni gc_metrics.csv a prevede na slovnik
 def read_gc_metrics_csv(path):
     return {row["metric"]: row["value"] for row in read_csv_rows(path)
             if "metric" in row}
 
-
+# nacteni annotation_summary.csv a prevede na slovnik, preskakuje chyby opet, gene, SINE, LINE,...
 def read_annotation_summary_csv(path):
     d = {}
     for row in read_csv_rows(path):
@@ -109,43 +96,38 @@ def read_annotation_summary_csv(path):
             pass
     return d
 
-
+# nacteni contig_lengths.txt z results vraci list serazenych radku
 def read_contig_lengths_txt(results_dir):
     path = os.path.join(results_dir, "contig_lengths.txt")
     rows = []
-    if not os.path.isfile(path):
-        return rows
     with open(path) as fh:
-        next(fh)
+        next(fh) # preskoceni hlavicky
         for line in fh:
-            parts = line.rstrip().split("\t")
-            if len(parts) == 2:
-                rows.append((parts[0], int(parts[1])))
+            parts = line.rstrip().split("\t") # odstraneni konce radku
+            if len(parts) == 2: # # ocekavame dva sloupce
+                rows.append((parts[0], int(parts[1]))) # accession a delka vypsani
     return rows
 
-
+# ukladani matplotlib figure, plots dir - plots, jmeno souboru bez pripony - stejna na zacatku specifikovana
 def save(fig, plots_dir, name):
     os.makedirs(plots_dir, exist_ok=True)
     path = os.path.join(plots_dir, f"{name}.{FIG_EXT}")
-    fig.savefig(path, dpi=_DPI, bbox_inches="tight")
-    plt.close(fig)
+    fig.savefig(path, dpi=_DPI, bbox_inches="tight") # tight = nezobrazovat mezery, ulozeni obrazku
+    plt.close(fig) # zavreni figure
     print(f"  [plot] saved -> {path}")
     return path
 
-
-#  Rebuild run_summary.tsv. Rebuild run_summary.tsv from per-combination CSV files. One tab-separated row per combination; opens directly in Excel.
-
+# run_summary.csv jeden radek jedna kombinace enzymu
 def build_run_summary(results_dir, combos, size_low, size_high):
-    all_ann_cats = set()
+    all_ann_cats = set() # mnozina vsech kategorii z anotaci (rm.out, gff)
     for combo in combos:
         ann = read_annotation_summary_csv(
-            os.path.join(results_dir, combo, "annotation_summary.csv"))
-        all_ann_cats.update(ann.keys())
-    all_ann_cats = sorted(all_ann_cats)
-    print(f"  [summary] annotation categories: {', '.join(all_ann_cats)}")
+            os.path.join(results_dir, combo, "annotation_summary.csv")) # nacteni anotacniho souboru pro konkretni kombinaci
+        all_ann_cats.update(ann.keys()) # pridani kategorii nalezenych
+    all_ann_cats = sorted(all_ann_cats) # serazeni abecedne kategorii
 
-    std_labels   = [f"{b}-{b+99}" for b in range(0, 1000, 100)] + [">=1000"]
-    custom_lbl   = f"custom_{size_low}-{size_high}"
+    std_labels   = [f"{b}-{b+99}" for b in range(0, 1000, 100)] + [">=1000"] # standardni biny
+    custom_lbl   = f"custom_{size_low}-{size_high}" # custom bin s velikosti knihovny
 
     header = (
         ["combination", "total_cuts", "total_fragments",
@@ -155,174 +137,157 @@ def build_run_summary(results_dir, combos, size_low, size_high):
         + ["gc_mean_pct", "gc_median_pct", "gc_std_pct",
            "gc_min_pct", "gc_max_pct", "gc_n_fragments"]
         + [f"ann_pct_{c}" for c in all_ann_cats]
-    )
-    print(f"  [summary] {len(header)} columns")
+    ) # hlavicka, gc statistiky, anotacni kategorie, pocty fragmentu, notacni procenta
 
-    rows = []
-    for combo in combos:
-        d      = os.path.join(results_dir, combo)
+    rows = [] #vytvorim radky zde ukladat data
+    for combo in combos: #jeden pruchod, jeden radek tsv
+        d      = os.path.join(results_dir, combo) #cesta k kombinaci
         cuts   = read_csv_rows(os.path.join(d, "cuts.csv"))
         frags  = read_csv_rows(os.path.join(d, "fragments.csv"))
         filt   = read_csv_rows(os.path.join(d, "filtered.csv"))
         dist   = read_distribution_csv(os.path.join(d, "distribution.csv"))
         gc     = read_gc_metrics_csv(os.path.join(d, "gc_metrics.csv"))
-        ann    = read_annotation_summary_csv(
-                     os.path.join(d, "annotation_summary.csv"))
-        print(f"  [summary] {combo}")
+        ann    = read_annotation_summary_csv(os.path.join(d, "annotation_summary.csv"))
 
-        rows.append(
+        rows.append( #pridani radku jednoho
             [combo, len(cuts), len(frags), len(filt)]
-            + [dist.get(l, 0) for l in std_labels]
-            + [len(filt)]
+            + [dist.get(l, 0) for l in std_labels] # pocet fragmentu v binech
+            + [len(filt)] # pocet fragmentu v custom binu
             + [gc.get("gc_mean_pct",   "n/a"),
                gc.get("gc_median_pct", "n/a"),
                gc.get("gc_std_pct",    "n/a"),
                gc.get("gc_min_pct",    "n/a"),
                gc.get("gc_max_pct",    "n/a"),
-               gc.get("n_fragments",   0)]
-            + [ann.get(c, "n/a") for c in all_ann_cats]
+               gc.get("n_fragments",   0)] #GC statistiky
+            + [ann.get(c, "n/a") for c in all_ann_cats] # anotacni procenta
         )
-        print(f"  [summary] {len(rows)} rows")
 
     tsv_path = os.path.join(results_dir, "run_summary.tsv")
-    with open(tsv_path, "w", newline="") as fh:
-        w = csv.writer(fh, delimiter="\t")
-        w.writerow(header)
-        w.writerows(rows)
-        print(f"  [summary] {len(rows)} rows written")
+    with open(tsv_path, "w", newline="") as fh: # otevreni souboru pro zapis
+        w = csv.writer(fh, delimiter="\t") # nastaveni oddelovacu
+        w.writerow(header) # zapis hlavicky
+        w.writerows(rows) # zapis radku
 
     print(f"  [tsv]  run_summary.tsv -> {tsv_path}")
 
 
 #  Fragment-length heatmap  (all fragments, 10 bp bins, log scale). Source: fragments.csv (all fragments, not just filtered)
 
-def plot_heatmap(results_dir, combos, plots_dir):
+def plot_heatmap(results_dir, combos, plots_dir): #zadani parametru - slozka s data, kombinace enzymu, slozka pro ulozeni obrazku
     bin_width = 10
     max_len   = 1000
-    edges     = list(range(0, max_len + 1, bin_width)) + [float("inf")]
-    n_bins    = len(edges) - 1
+    edges     = list(range(0, max_len + 1, bin_width)) + [float("inf")] #vytvoreni hranic binu, inf aby se nezahodili
+    n_bins    = len(edges) - 1 #pocet binu
 
-    mat = np.zeros((len(combos), n_bins), dtype=np.int64)
+    mat = np.zeros((len(combos), n_bins), dtype=np.int64) #matice pro heatmapu s nulami pro pocet radku a sloupce
 
-    for i, combo in enumerate(combos):
+    for i, combo in enumerate(combos): # tvorba array pro heatmapu z fragments.csv po kombinacich
         rows = read_csv_rows(os.path.join(results_dir, combo, "fragments.csv"))
         lengths = np.array([int(r["fragment_length"]) for r in rows],
                            dtype=np.int64)
         if lengths.size == 0:
             continue
-        clipped         = np.minimum(lengths, max_len)
-        counts, _       = np.histogram(clipped, bins=edges)
-        mat[i]          = counts
+        clipped         = np.minimum(lengths, max_len) # oriznuti nejdelsich fragmentu nad 1000 jako 1000
+        counts, _       = np.histogram(clipped, bins=edges) # pocet fragmentu v jednotlivych binech do array matice
+        mat[i]          = counts # ulozeni do matice
 
-    if mat.max() == 0:
+    if mat.max() == 0: # nalezeni nejvetsiho cisla v matici pokud je nula nejsou data pro vytvoreni grafu
         print("  [WARN] heatmap: no fragment data found, skipping.")
-        return
+        return 
 
-    fig_h = max(4, len(combos) * 0.40 + 1.5)
-    fig_w = max(12, n_bins * 0.12 + 3)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    fig_h = max(4, len(combos) * 0.40 + 1.5) # vysku grafu zvysuji s poctem kombinaci
+    fig_w = max(12, n_bins * 0.12 + 3) # sirku grafu zvysuji s poctem binu, mela by byt konstantni
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h)) # matplotlib fig cely obrazek a ax graf
 
-    im = ax.imshow(
-        mat, aspect="auto", cmap=PALETTE,
-        norm=LogNorm(vmin=1, vmax=max(int(mat.max()), 1)),
-        origin="lower",
+    im = ax.imshow( #vykresleni matice na heatmapu
+        mat, aspect="auto", cmap=PALETTE, #aspect automaticka velikost bunek
+        norm=LogNorm(vmin=1, vmax=max(int(mat.max()), 1)), # logaritmicka skala zvyrazneni i malych poctu
+        origin="lower", # zobrazeni prvni kombinace dole
     )
 
-    ax.set_yticks(np.arange(len(combos)))
+    ax.set_yticks(np.arange(len(combos))) # popsany y osy kombinacemi, pomoci array kazda v radku kombinace
     ax.set_yticklabels(combos,
-                       fontsize=max(6, min(9, 120 // max(len(combos), 1))))
+                       fontsize=max(6, min(9, 120 // max(len(combos), 1)))) # dynamicke zmenseni velikosti pisma dle poctu kombinaci
 
-    xt_idxs   = np.arange(0, max_len + 1, 100) // bin_width
-    xt_labels = [str(x) for x in range(0, max_len + 1, 100)]
-    ax.set_xticks(xt_idxs)
-    ax.set_xticklabels(xt_labels, rotation=45, ha="right")
+    xt_idxs   = np.arange(0, max_len + 1, 100) // bin_width # indexy pro x osu array, po 100, ne po binech
+    xt_labels = [str(x) for x in range(0, max_len + 1, 100)] # vytvori cisla po 100
+    ax.set_xticks(xt_idxs) # popsana x osa
+    ax.set_xticklabels(xt_labels, rotation=45, ha="right") # rotace a zarovnani
 
-    ax.set_xlabel("Fragment length (bp)")
-    ax.set_ylabel("Enzyme combination")
+    ax.set_xlabel("Fragment length (bp)") # popis x osy
+    ax.set_ylabel("Enzyme combination") # popis y osy
     ax.set_title(
         f"Fragment count heatmap — {len(combos)} combinations "
-        f"(10 bp bins, log scale)")
+        f"(10 bp bins, log scale)") # titulek grafu
 
-    cbar = fig.colorbar(im, ax=ax, shrink=0.8)
-    cbar.set_label("Fragment count (log scale)")
+    cbar = fig.colorbar(im, ax=ax, shrink=0.8) # barevna legenda
+    cbar.set_label("Fragment count (log scale)") # popis barevne legendy log skaly
 
-    save(fig, plots_dir, "heatmap_fragment_lengths")
+    save(fig, plots_dir, "heatmap_fragment_lengths") # ulozeni obrazku
 
-#  Per-chromosome fragment counts  (heatmap + grouped bar). heatmap_chrom_distribution.png  – combinations × chromosomes heatmap. bar_chrom_distribution.png – grouped bar chart
-
-def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
+# chromozomovy graf - zobrazeni mnozstvi fragmentu na jednotlivych chromozomech; grouped bar graf pro distribuci fragmentu po chromozomech
+def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms): #zadani parametru - slozka s data, kombinace enzymu, slozka pro ulozeni obrazku, pocty chromozomu
     contig_list = read_contig_lengths_txt(results_dir)
-    if not contig_list:
-        print("  [WARN] chrom plots: contig_lengths.txt not found, skipping.")
-        return
 
-    chroms    = [acc for acc, _ in contig_list[:n_chroms]]
-    chrom_idx = {acc: i for i, acc in enumerate(chroms)}
-    n_c       = len(chroms)
+    chroms    = [acc for acc, _ in contig_list[:n_chroms]] # beru pouze x nejdelsich beru jako chromozomu
+    chrom_idx = {acc: i for i, acc in enumerate(chroms)} # indexy chromozomu 0-based
+    n_c       = len(chroms) # pocet chromozomu
 
-    mat = np.zeros((len(combos), n_c), dtype=np.int64)
-    for i, combo in enumerate(combos):
+    mat = np.zeros((len(combos), n_c), dtype=np.int64) # matice pro ulozeni dat nuly
+    for i, combo in enumerate(combos): # pro kazdou kombinaci nahradim nuly poctem
         rows = read_csv_rows(
-            os.path.join(results_dir, combo, "filtered.csv"))
-        for r in rows:
-            if r["accession"] in chrom_idx:
-                mat[i, chrom_idx[r["accession"]]] += 1
+            os.path.join(results_dir, combo, "filtered.csv")) # nacitam soubor s filtrovanymi fragmenty
+        for r in rows: # jedu po radcich 
+            if r["accession"] in chrom_idx: # jestli je chromozom v seznamu a neni to nenamapovany contig
+                mat[i, chrom_idx[r["accession"]]] += 1 # najdi radek a sloupec a pricti 1
 
-    if mat.max() == 0:
+    if mat.max() == 0: # pokud je nejvyssi cislo 0 preskocit a vytisknout chybovou hlasku
         print(f"  [WARN] chrom plots: no filtered fragments on first "
               f"{n_chroms} contigs, skipping.")
         return
 
     chrom_labels = [
-        f"chr{i+1}\n({chroms[i][:8]}…)" if len(chroms[i]) > 8
+        f"chr{i+1}\n({chroms[i][:11]}…)" if len(chroms[i]) > 11 #zkraceni dlouhych nazvu 
         else f"chr{i+1}\n({chroms[i]})"
         for i in range(n_c)
     ]
 
-    # heatmap 
-    fig_h = max(4, len(combos) * 0.40 + 1.5)
-    fig_w = max(8, n_c * 0.55 + 3)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    fig_h = max(4, len(combos) * 0.40 + 1.5) # vysku grafu zvysuji s poctem kombinaci
+    fig_w = max(8, n_c * 0.55 + 3) # sirku grafu zvysuji s poctem binu, mela by byt konstantni
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h)) # matplotlib fig cely obrazek a ax graf
 
-    im = ax.imshow(mat, aspect="auto", cmap="YlOrRd", origin="lower")
+    im = ax.imshow(mat, aspect="auto", cmap="YlOrRd", origin="lower") # barevna skala, prvni kombinace dole 
     ax.set_yticks(np.arange(len(combos)))
     ax.set_yticklabels(combos,
                        fontsize=max(6, min(9, 120 // max(len(combos), 1))))
-    ax.set_xticks(np.arange(n_c))
-    ax.set_xticklabels(chrom_labels, rotation=45, ha="right", fontsize=7)
-    ax.set_xlabel("Chromosome (contig, longest first)")
-    ax.set_ylabel("Enzyme combination")
-    ax.set_title(
-        f"Filtered fragment count per chromosome — first {n_c} contigs")
-    fig.colorbar(im, ax=ax, shrink=0.8).set_label("Fragment count")
-    save(fig, plots_dir, "heatmap_chrom_distribution")
+    ax.set_xticks(np.arange(n_c)) # chromozomy na ose x
+    ax.set_xticklabels(chrom_labels, rotation=45, ha="right", fontsize=7) # rotace nazvu, zarovnani
+    ax.set_xlabel("Chromosome (contig, longest first)") # popis x osy
+    ax.set_ylabel("Enzyme combination") # popis y osy
+    ax.set_title(f"Filtered fragment count per chromosome — first {n_c} contigs") # popis grafu dynamicky počet chromozomu
+    fig.colorbar(im, ax=ax, shrink=0.8).set_label("Fragment count") # barevna legenda
+    save(fig, plots_dir, "heatmap_chrom_distribution") # ulozeni obrazku
 
-    # grouped bar chart
+    # grouped bar graf - stejna data jina vizualizace
     fig_w2 = max(10, n_c * max(len(combos), 1) * 0.05 + 3)
     fig2, ax2 = plt.subplots(figsize=(fig_w2, 5))
 
-    x       = np.arange(n_c)
-    width   = 0.8 / max(len(combos), 1)
-    colours = (plt.cm.tab20 if len(combos) > 10 else plt.cm.tab10)(
-        np.linspace(0, 1, len(combos)))
+    x       = np.arange(n_c) # pozice chromozomu
+    width   = 0.8 / max(len(combos), 1) # sirka sloupcu podle poctu kombinaci
+    colours = (plt.cm.tab20 if len(combos) > 10 else plt.cm.tab10)(np.linspace(0, 1, len(combos))) # barvy podle poctu kombinaci automaticky
 
-    for j, combo in enumerate(combos):
-        offset = (j - len(combos) / 2 + 0.5) * width
-        ax2.bar(x + offset, mat[j], width=width * 0.9,
-                color=colours[j], label=combo, alpha=0.85)
+    for j, combo in enumerate(combos): # pro kazdou kombinaci
+        offset = (j - len(combos) / 2 + 0.5) * width # zarovnani sloupcu vedle sebe
+        ax2.bar(x + offset, mat[j], width=width * 0.9, color=colours[j], label=combo, alpha=0.85) # vykresleni sloupce pro kazdou kombinaci
 
-    ax2.set_xticks(x)
-    ax2.set_xticklabels([f"chr{i+1}" for i in range(n_c)],
-                        rotation=45, ha="right")
-    ax2.set_xlabel("Chromosome (contig, longest first)")
-    ax2.set_ylabel("Filtered fragment count")
-    ax2.set_title(f"Filtered fragments per chromosome — first {n_c} contigs")
-    ax2.yaxis.set_major_formatter(
-        ticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
-    ax2.legend(loc="upper right", fontsize=7,
-               ncol=max(1, len(combos) // 8),
-               bbox_to_anchor=(1.01, 1), borderaxespad=0)
-    save(fig2, plots_dir, "bar_chrom_distribution")
+    ax.set_xticks(np.arange(n_c))
+    ax.set_xticklabels(chrom_labels, rotation=45, ha="right", fontsize=7) # rotace a zarovnani
+    ax2.set_xlabel("Chromosome") # popisek x osy
+    ax2.set_ylabel("Filtered fragment count") # popisek y osy
+    ax2.set_title(f"Filtered fragments per chromosome — first {n_c} contigs") # nazev grafu, dynamicky pocet chromozomu
+    ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
+    ax2.legend(loc="upper right", fontsize=7, ncol=max(1, len(combos) // 8), bbox_to_anchor=(1.01, 1), borderaxespad=0) # ukotveni legendy a vytvoreni
+    save(fig2, plots_dir, "bar_chrom_distribution") # ulozeni obrazku
 
 # GC content distribution - One bar per combination: mean GC% ± 1 SD, whiskers = min/max, diamond = median. Reads gc_metrics.csv (summary stats computed by the pipeline for filtered fragments only).
 
