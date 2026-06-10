@@ -33,8 +33,12 @@ if [ -n "$LUID" ] ; then
     if [ "$DGID" -eq 0 ] ; then
 	adduser -G root -D -H -u $DUID rendogbs
     else
-	addgroup -g $DGID rendogbs
-	adduser -G rendogbs -D -H -u $DUID rendogbs
+	GRP=$(getent group $DGID | cut -d: -f1)
+	if [ -z "$GRP" ] ; then
+	    GRP=rendogbs
+	    addgroup -g $DGID rendogbs
+	fi
+	adduser -G $GRP -D -H -u $DUID rendogbs
     fi
     su rendogbs -c "sh rendogbs_run.sh $*"
 else
