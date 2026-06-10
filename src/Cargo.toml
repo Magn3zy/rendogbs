@@ -1,0 +1,27 @@
+[package]
+name        = "rendogbs_finder"
+version     = "0.1.0"
+edition     = "2021"
+description = "Aho-Corasick cut-site finder for rendogbs pipeline"
+
+[[bin]]
+name = "rendogbs_finder"
+path = "src/main.rs"
+
+[dependencies]
+# Aho-Corasick multi-pattern search
+aho-corasick   = "1"
+# Fast CSV reading
+csv            = "1"
+# CLI argument parsing
+clap           = { version = "4", features = ["derive"] }
+# Parallel iteration
+rayon          = "1"
+# FASTA/FASTQ reading
+needletail     = "0.5"
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+strip         = true
