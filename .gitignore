@@ -3,3 +3,4 @@ __pycache__
 .docker-built
 *.sif
 .DS_Store
+.docker-bedtools-built

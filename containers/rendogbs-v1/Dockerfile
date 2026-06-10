@@ -4,6 +4,9 @@
 # Docker image for rendogbs. Two-stage build with compiled binaries
 # being created during build stage and included in the final image
 # without the development environment.
+#
+# Requirements:
+# - rendogbs-bedtools
 
 ################################################################
 # Build Stage - rust
@@ -15,16 +18,6 @@ COPY ./src/main.rs /home/build/
 COPY ./src/Cargo.toml /home/build/
 
 RUN cd /home/build && cargo build --release
-
-################################################################
-# Build Stage - bedtools
-
-FROM alpine:3.18 AS bedbuild
-RUN apk add --no-cache bash build-base zlib-dev bzip2-dev xz-dev python3
-
-RUN mkdir /home/build
-
-RUN cd /home/build && wget https://github.com/arq5x/bedtools2/releases/download/v2.31.1/bedtools-2.31.1.tar.gz && tar zxf bedtools-2.31.1.tar.gz && cd bedtools2 && make
 
 ################################################################
 # Runtime Stage
@@ -44,6 +37,6 @@ COPY ./src/endonucleases.py /home/rendogbs/
 COPY ./src/enzymes.csv /home/rendogbs/
 
 COPY --from=build /home/build/target/release/rendogbs_finder /home/rendogbs/
-COPY --from=bedbuild /home/build/bedtools2/bin/bedtools /usr/bin/bedtools
+COPY --from=rendogbs-bedtools:latest /home/build/bedtools2/bin/bedtools /usr/bin/bedtools
 
 ENTRYPOINT ["/home/rendogbs/rendogbs_user.sh"]
