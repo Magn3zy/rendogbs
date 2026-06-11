@@ -29,6 +29,12 @@ CONTAINER TYPE (default: --docker)
   --singularity             Run the singularity container rendogbs-v1.sif in this
                             directory
 
+PBS SUPPORT
+  --qsub                    Do not run directly but submit as PBS job using qsub
+  --limits|-l     <limits>  Specify arbitrary PBS job limits (typically mem=XXgb)
+  --interactive|-I          Run as interactive PBS job
+  --name|-N         <name>  Specify PBS job name (defaults to rendogbs)
+
 REQUIRED
   --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
   --workdir        <dir>    Working directory (created if absent)
@@ -212,6 +218,7 @@ while [ -n "$1" ] ; do
 	    if [ -n "$2" ] ; then
 		INNER_ARGS="$INNER_ARGS $1 $2"
 		ARGSMSK=$((ARGSMSK | 4))
+		PBSOPTS="$PBSOPTS -l ncpus=$2"
 		shift
 		shift
 	    else
