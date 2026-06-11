@@ -2,7 +2,7 @@
 """
 combination_processing.py  -  Prvni krok
 
-Mod renda (fast / all / custom), kontroluje nazvy enzymu oproti masteru enzymes.csv
+Mod renda (fast / custom), kontroluje nazvy enzymu oproti masteru enzymes.csv
 vypisuje do <workdir>/results/:
 
   enzymes_run.csv   - sekvence pouze pro tento beh
@@ -19,6 +19,7 @@ Implementace (rendogbs.sh):
       --workdir      ./run1 \\
       --combinations fast \\
       [--combinations-file my_pairs.txt]
+POZOR all zruseno, pak upravim help, to by bylo ohromne, neprehledne grafy a hlavne zbytecne
 """
 import os
 import sys
@@ -31,7 +32,7 @@ FAST_COMBOS = [
     ('EcoRI',    'NlaIII'),
     ('PstI',     'MspI'),
     ('PstI',     'MseI'),
-    ('PstI',     'TaqI-v2'),
+    ('PstI',     'TaqI'),
     ('PstI',     'MboI'),
     ('PstI',     'HpaII'),
     ('SbfI',     'MspI'),
@@ -53,64 +54,37 @@ FAST_COMBOS = [
     ('ClaI',     'MboI'),
 ]
 
-# Load master enzymes.csv
+# nacteni enzymes.csv expandovane iupac znaky
 def load_enzymes_csv(path):
     if not os.path.isfile(path):
-        print(f'[ERROR] enzymes.csv not found: {path}')
-        sys.exit(1)
-
+        sys.exit(f'[ERROR] enzymes.csv not found: {path}')
     db = {}
     with open(path, newline='') as fh:
         for row in csv.DictReader(fh):
-            name = row['enzyme_name']
-            db.setdefault(name, []).append({
-                'enzyme_name':       name,
-                'expanded_sequence': row['expanded_sequence'],
-                'cut_offset':        row['cut_offset'],
-            })
+            db.setdefault(row['enzyme_name'], []).append(row)
     return db
 
 # kombinace pro rendogbs_pipeline
 def load_combinations_file(path):
+    if not path:
+        sys.exit('[ERROR] --combinations custom requires --combinations-file')
     combos = []
-    with open(path) as fh:
-        for i, line in enumerate(fh):
-            line = line.strip()
-            if not line or i == 0:
-                continue
-            parts = line.split(',')
+    with open(path, newline='') as fh:
+        reader = csv.reader(fh)
+        next(reader, None) # preskoceni hlavicky
+        for i, parts in enumerate(reader, 2):
             if len(parts) != 2:
-                print(f'  [WARN] Line {i+1} bad format, skipping: {line!r}')
+                print(f'  [WARN] Line {i+1} bad format, skipping: {line!r}') 
                 continue
             combos.append((parts[0].strip(), parts[1].strip()))
     return combos
 
-def resolve_combinations(mode, custom_path, all_names):
-    if mode == 'fast':
-        return list(FAST_COMBOS)
-    if mode == 'all':
-        return [(a, b) for a in all_names for b in all_names if a != b]
-    if mode == 'custom':
-        if not custom_path:
-            print('[ERROR] --combinations custom requires --combinations-file')
-            sys.exit(1)
-        return load_combinations_file(custom_path)
-    print(f'[ERROR] Unknown combinations mode: {mode!r}')
-    sys.exit(1)
-
 def main():
-    parser = argparse.ArgumentParser(
-        description='Resolve enzyme combinations and write run-specific CSVs.')
-    parser.add_argument('--enzymes-csv', required=True,
-                        help='Master enzymes.csv')
-    parser.add_argument('--workdir', required=True,
-                        help='Working directory; outputs go to <workdir>/results/')
-    parser.add_argument('--combinations', default='fast',
-                        choices=['fast', 'all', 'custom'],
-                        help='Combination preset (default: fast)')
-    parser.add_argument('--combinations-file', default=None,
-                        dest='combinations_file',
-                        help='CSV for custom mode')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--enzymes-csv', required=True)
+    parser.add_argument('--workdir', required=True,)
+    parser.add_argument('--combinations', default='fast', choices=['fast', 'custom']) # zmena
+    parser.add_argument('--combinations-file', default=None)
     args = parser.parse_args()
 
     results_dir = os.path.join(args.workdir, 'results')

@@ -285,6 +285,12 @@ fi
 
 # Run the container and pass mappings and arguments to the inner
 # wrapper script.
+echo $PBSWRAP $PBSOPTS $PBSNAME $PBSEND $CCMD run \
+      $VMAPPINGS \
+      $CIDMAP \
+      $IMAGE \
+      $INNER_ARGS
+echo ================================================================
 $PBSWRAP $PBSOPTS $PBSNAME $PBSEND $CCMD run \
       $VMAPPINGS \
       $CIDMAP \
