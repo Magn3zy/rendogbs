@@ -2,7 +2,7 @@
 
 # Inner environment
 IHOME=/home/rendogbs
-IMAGE=rendogbs-v1
+IMGNAME=rendogbs-v1
 
 # Outer environment: current working directory and script directory
 wd=`pwd`
@@ -28,6 +28,7 @@ CONTAINER TYPE (default: --docker)
   --docker                  Run the docker container (default)
   --singularity             Run the singularity container rendogbs-v1.sif in this
                             directory
+  --image          <image>  Docker image name or singularity image file name.
 
 PBS SUPPORT
   --qsub                    Do not run directly but submit as PBS job using qsub
@@ -138,20 +139,26 @@ PBSWRAP=
 PBSEND=
 PBSOPTS=
 PBSNAME="-N rendogbs"
+IMAGE=$IMGNAME
 
 # Iterate through all command-line options and their arguments
 while [ -n "$1" ] ; do
     case "$1" in
 	--singularity)
 	    CCMD=`which singularity`
-	    IMAGE="$sd/rendogbs-v1.sif"
+	    IMAGE="$sd/$IMGNAME.sif"
 	    VMOPT=-B
 	    CIDMAP=
 	    shift
 	    ;;
+	--image)
+	    shift
+	    IMAGE="$1"
+	    shift
+	    ;;
 	--docker)
 	    CCMD=`which docker`
-	    IMAGE=rendogbs-v1
+	    IMAGE=$IMGNAME
 	    VMOPT=v
 	    CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
 	    shift
