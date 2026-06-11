@@ -5,6 +5,9 @@
 # Simple build system for rendogbs.
 #
 
+# Configuration
+IMGNAME=rendogbs-v1
+
 # By default, build the docker image
 .PHONY: default
 default: docker
@@ -35,14 +38,14 @@ docker: containers/.docker-rendogbs-built
 containers/.docker-rendogbs-built: containers/rendogbs-v1/Dockerfile	\
 		$(SCRIPTS) containers/.docker-bedtools-built		\
 		$(WRAPPERS) $(PROGRAMS)
-	docker build -f $< -t rendogbs-v1 .
+	docker build -f $< -t $(IMGNAME) .
 	touch $@
 
 # A bit crude, but works
 .PHONY: clean
 clean:
-	rm -f containers/.docker-rendogbs-built rendogbs-v1.sif
-	docker image rm rendogbs-v1 || true
+	rm -f containers/.docker-rendogbs-built $(IMGNAME).sif
+	docker image rm $(IMGNAME) || true
 
 # Like clean but also removes the compiled bedtools docker image
 .PHONY: distclean
@@ -51,10 +54,10 @@ distclean: clean
 	docker image rm rendogbs-bedtools || true
 
 .PHONY: singularity
-singularity: rendogbs-v1.sif
+singularity: $(IMGNAME).sif
 
-rendogbs-v1.sif: containers/.docker-rendogbs-built
-	singularity build -F rendogbs-v1.sif docker-daemon://rendogbs-v1:latest
+$(IMGNAME).sif: containers/.docker-rendogbs-built
+	singularity build -F $@ docker-daemon://$(IMGNAME):latest
 
 # For manually starting the bedtools docker image build
 .PHONY: docker-bedtools

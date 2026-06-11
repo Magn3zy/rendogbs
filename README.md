@@ -172,7 +172,9 @@ These two options are equivalent.
 Architecture
 ------------
 
-Dockerfile - Docker image recipy
+Makefile
+containers/rendogbs-v1/Dockerfile - Docker image recipy
+containers/rendogbs-bedtools/Dockerfile - ...
 rendogbs.sh - outer wrapper script
 src/ - sources
 src/endonucleases.py - default data source
@@ -183,6 +185,8 @@ src/rendogbs_user.sh - inner permission wrapper script
 
 ### Outer Wrapper Script: rendogbs.sh
 
+TODO IMGNAME
+
 This script validates the presence of mandatory arguments on the
 command-line and creates appropriate Docker volume mappings for any
 files and/or directories the pipeline needs.
@@ -190,6 +194,10 @@ files and/or directories the pipeline needs.
 Then it runs the Docker image `rendogbs-v1` and passes all the
 collected arguments to its entrypoint which is the inner wrapper
 script.
+
+### Build System: Makefile
+
+TODO IMGNAME
 
 ### Docker Image: Dockerfile
 
