@@ -9,13 +9,9 @@ name = "rendogbs_finder"
 path = "main.rs"
 
 [dependencies]
-# Aho-Corasick multi-pattern search
 aho-corasick   = "1"
-# Fast CSV reading
 csv            = "1"
-# CLI argument parsing
 clap           = { version = "4", features = ["derive"] }
-# FASTA/FASTQ reading
 needletail     = "0.5"
 rayon          = "1"
 

@@ -1,133 +1,158 @@
 // Input:  --enzymes-run  enzymes_run.csv
 //         --ref    genome.fa / .fa.gz
 //         --out-dir      output directory
-//         --parallel      N contigs processed in parallel
-//
+//         --parallel      N contigs processed in parallel (writers use 1, searchers use parallel-1)
 // Output: cuts/EcoRI.csv, cuts/MseI.csv ...
-//        columns: accession,strand,motif_start,cut_position
+//        header: accession,motif_start,cut_position
 
 use std::{
     collections::HashMap,
     fs,
     io::{BufWriter, Write},
     path::PathBuf,
-    // sync::{Arc, Mutex}, zamykat/nezamykat - bud kazde vlakno ma hashovaci tabulku a slouci se to nakonec nezapisuje si to navzajem, nebo teda zapisuje navzajem a mutex hlida aby se nezapisovalo pres sebe vlastne, asi otestovat co bude rychlejsi ten lock by mohl delat problemy
+    sync::mpsc,
+    thread,
 };
-// hashovaci tabulka, filesystem, data do bufferu zapis po blocich, objekt reprez cestu, arc a mutex pro paralelni beh
 
-use aho_corasick::{AhoCorasick};
+use aho_corasick::AhoCorasick;
 use clap::Parser;
 use csv::ReaderBuilder;
 use rayon::prelude::*;
-// aho, csv čtení, cli parser, parallel
+
+#[derive(Debug, Clone)]
+struct Enzyme {
+    name: String,
+    sequence: String,
+    cut_offset: i64,
+}
+
+// message through channel = one hit
+struct Hit {
+    enzyme_name: String,
+    row: String, // "accession,motif_start,cut_position"
+}
 
 #[derive(Parser)]
 #[command(name = "rendogbs_finder")]
-// clap generuje parser argumentu, struktura drzici parametry z prikazove radky
 struct Cli {
     #[arg(long)]
     enzymes_run: PathBuf,
 
     #[arg(long, short = 'r')]
-    ref: PathBuf,
+    r#ref: PathBuf,
 
     #[arg(long, short = 'o')]
     out_dir: PathBuf,
 
-    #[arg(long, short = 'p', default_value_t = 1)]
+    #[arg(long, short = 'p', default_value_t = 2)]
     parallel: usize,
 }
 
-// start programu, tvorba kofigurace poolu, tvori globalni pool, vytvoreni adresre vystupu pokud neni, pole pro enzymy, otevreni csv s motivy
 fn main() {
-    let cli = Cli::parse(); // parsovani argumentu
+    let cli = Cli::parse();
+
+    // at leats 1 writer + N-1 searchers
+    let search_threads = cli.parallel.saturating_sub(1).max(1);
 
     rayon::ThreadPoolBuilder::new()
-        .num_threads(cli.parallel)
-        .build_global() // nastaveni limitu pro cely program
+        .num_threads(search_threads)
+        .build_global()
         .unwrap();
 
-    fs::create_dir_all(&cli.out_dir).unwrap(); // vytvoreni adresare results
+    fs::create_dir_all(&cli.out_dir).unwrap();
 
-    // nacteni dat enzymu z csv
-    let mut names: Vec<String> = Vec::new();
-    let mut seqs: Vec<String> = Vec::new();
-    let mut cuts: Vec<i64> = Vec::new();
-
+    // load enzymes 
+    let mut enzymes: Vec<Enzyme> = Vec::new();
     let mut rdr = ReaderBuilder::new()
-        .has_headers(true) // preskoceni hlavicky
+        .has_headers(true)
         .from_path(&cli.enzymes_run)
         .expect("Cannot open enzymes_run.csv");
 
     for rec in rdr.records() {
-        let rec = rec.unwrap();
-        names.push(rec[0].to_string()); // nazev to string
-        seqs.push(rec[1].to_string()); // string
-        cuts.push(rec[2].parse().unwrap()); // cislo i64
+        let rec = rec.expect("Invalid CSV row");
+        enzymes.push(Enzyme {
+            name: rec[0].to_string(),
+            sequence: rec[1].to_string(),
+            cut_offset: rec[2].parse().expect("Invalid cut_offset"),
+        });
     }
+    eprintln!("[INFO] {} patterns loaded", enzymes.len());
 
-    eprintln!("[INFO] {} patterns loaded", seqs.len());
-
+    // build AhoCorasick
+    let patterns: Vec<&str> = enzymes.iter().map(|e| e.sequence.as_str()).collect();
     let ac = AhoCorasick::builder()
-            .ascii_case_insensitive(true) // test bez prevodu fasta
-            .build(&seqs)
-            .expect("AhoCorasick build failed");
+        .ascii_case_insensitive(true)
+        .build(&patterns)
+        .expect("AhoCorasick build failed");
 
-    let mut contigs: Vec<(String, Vec<u8>)> = Vec::new(); // sekvence jako bajty
-    let mut reader = needletail::parse_fastx_file(&cli.ref) 
+    // load fasta
+    let mut contigs: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut reader = needletail::parse_fastx_file(&cli.r#ref)
         .expect("Cannot read FASTA");
-// smycka pro precteni fasta
+
     while let Some(rec) = reader.next() {
-        let rec = rec.unwrap(); // contig po contigu do konce souboru
-        let acc = std::str::from_utf8(rec.id()) // prevedeni kodovani hlavicky z utf8 na str
+        let rec = rec.expect("FASTA parse error");
+        let acc = std::str::from_utf8(rec.id())
             .unwrap()
-            .split_whitespace() // ignoruje > zacatek nazvu contigu
+            .split_whitespace()
             .next()
             .unwrap_or("?")
             .to_string();
-        let seq = rec.seq().to_vec();
-        contigs.push((acc, seq));
+        contigs.push((acc, rec.seq().to_vec()));
     }
+    eprintln!(
+        "[INFO] {} contigs | {} search threads + 1 writer thread",
+        contigs.len(),
+        search_threads
+    );
 
-    eprintln!("[INFO] {} contigs | {} threads", contigs.len(), cli.parallel);
+    // search and writter thead
+    let (tx, rx) = mpsc::sync_channel::<Hit>(65536); // backpressure buffer
 
-    // parallel contigs immutable reference na celý tuple, seq je &Vec<u8> automaticky se dereferencuje na &[u8] pouze cteni ne zapis
-    let merged: HashMap<String, Vec<String>> = contigs
-        .par_iter()
-        .map(|(acc, seq)| {
-            let mut local: HashMap<String, Vec<String>> = HashMap::new();
-            for m in ac.find_overlapping_iter(seq) { // najde vsechny shody!
-                let idx = m.pattern().as_usize(); // relativni cut pozice
-                let cut = m.start() as i64 + cuts[idx]; // cut position absolutni ve vlakne
-                local
-                    .entry(names[idx].clone()) //klic nazev enzymu
-                    .or_default() // neexistujici klic tzn prazdny vektor
-                    .push(format!("{},{},{}", acc, m.start(), cut));
-            }
-            local
-        })
-        // slouceni HashMaps z vlaken a presunuti dat
-        .reduce(HashMap::new, |mut a, b| {
-            for (k, mut v) in b {
-                a.entry(k).or_default().append(&mut v);
-            }
-            a
-        });
+    let out_dir = cli.out_dir.clone();
 
-    // csv output
-    let mut enzyme_set: Vec<String> = names.clone();
-    enzyme_set.sort(); // abecedni serazeni aby fungovalo odstraneni duplicit
-    enzyme_set.dedup(); // na serazenem vektoru
+    // writter thread outside of rayonpool
+    let writer_handle = thread::spawn(move || {
+        // lazy open after first Hit
+        let mut writers: HashMap<String, BufWriter<fs::File>> = HashMap::new();
 
-    for name in &enzyme_set {
-        let path = cli.out_dir.join(format!("{}.csv", name.replace(['/', ':'], "_"))); // nahrazeni nevhodnych znaku sobouru 
-        let mut w = BufWriter::new(fs::File::create(&path).unwrap()); // otevreni souboru pro zapis
-        writeln!(w, "accession,motif_start,cut_position").unwrap(); // hlavicka
-        for row in merged.get(name).into_iter().flatten() { 
-            writeln!(w, "{}", row).unwrap();
+        for hit in rx {
+            let w = writers.entry(hit.enzyme_name.clone()).or_insert_with(|| {
+                let path = out_dir.join(format!("{}.csv", hit.enzyme_name));
+                let mut bw = BufWriter::with_capacity(
+                    1 << 20, // 1MB buffer
+                    fs::File::create(&path).unwrap()
+                );
+                writeln!(bw, "accession,motif_start,cut_position").unwrap();
+                eprintln!("  -> {}.csv (created)", hit.enzyme_name);
+                bw
+            });
+
+            writeln!(w, "{}", hit.row).unwrap();
         }
-        eprintln!("  -> {}.csv", name);
-    }
 
+        // channel closed - flush writter
+        for (_, mut w) in writers {
+            w.flush().unwrap();
+        }
+    });
+
+    //  parallel search par_iter between contigs and find_overlapping_iter
+    contigs.par_iter().for_each_with(tx, |tx, (acc, seq)| {
+        for m in ac.find_overlapping_iter(seq) {
+            let idx = m.pattern().as_usize();
+            let enzyme = &enzymes[idx];
+            let cut = m.start() as i64 + enzyme.cut_offset;
+
+            tx.send(Hit {
+                enzyme_name: enzyme.name.clone(),
+                row: format!("{},{},{}", acc, m.start(), cut),
+            })
+            .expect("Writer thread died unexpectedly");
+        }
+    });
+    // tx drop rx loop inside writter ended
+
+    writer_handle.join().expect("Writer thread panicked");
     eprintln!("[OK] done.");
 }
