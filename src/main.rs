@@ -1,7 +1,7 @@
 // Input:  --enzymes-run  enzymes_run.csv
 //         --reference    genome.fa / .fa.gz
 //         --out-dir      output directory
-//         --threads      N contigs processed in parallel
+//         --parallel      N contigs processed in parallel
 //
 // Output: cuts/EcoRI.csv, cuts/MseI.csv ...
 //        columns: accession,strand,motif_start,cut_position
@@ -34,8 +34,8 @@ struct Cli {
     #[arg(long, short = 'o')]
     out_dir: PathBuf,
 
-    #[arg(long, short = 't', default_value_t = 1)]
-    threads: usize,
+    #[arg(long, short = 'p', default_value_t = 1)]
+    parallel: usize,
 }
 
 // start programu, tvorba kofigurace poolu, tvori globalni pool, vytvoreni adresre vystupu pokud neni, pole pro enzymy, otevreni csv s motivy
@@ -43,7 +43,7 @@ fn main() {
     let cli = Cli::parse(); // parsovani argumentu
 
     rayon::ThreadPoolBuilder::new()
-        .num_threads(cli.threads)
+        .num_threads(cli.parallel)
         .build_global() // nastaveni limitu pro cely program
         .unwrap();
 
@@ -89,7 +89,7 @@ fn main() {
         contigs.push((acc, seq));
     }
 
-    eprintln!("[INFO] {} contigs | {} threads", contigs.len(), cli.threads);
+    eprintln!("[INFO] {} contigs | {} threads", contigs.len(), cli.parallel);
 
     // parallel contigs
     let merged: HashMap<String, Vec<String>> = contigs
