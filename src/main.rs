@@ -1,5 +1,5 @@
 // Input:  --enzymes-run  enzymes_run.csv
-//         --reference    genome.fa / .fa.gz
+//         --ref    genome.fa / .fa.gz
 //         --out-dir      output directory
 //         --parallel      N contigs processed in parallel
 //
@@ -29,7 +29,7 @@ struct Cli {
     enzymes_run: PathBuf,
 
     #[arg(long, short = 'r')]
-    reference: PathBuf,
+    ref: PathBuf,
 
     #[arg(long, short = 'o')]
     out_dir: PathBuf,
@@ -74,7 +74,7 @@ fn main() {
             .expect("AhoCorasick build failed");
 
     let mut contigs: Vec<(String, Vec<u8>)> = Vec::new(); // sekvence jako bajty
-    let mut reader = needletail::parse_fastx_file(&cli.reference)
+    let mut reader = needletail::parse_fastx_file(&cli.ref) 
         .expect("Cannot read FASTA");
 // smycka pro precteni fasta
     while let Some(rec) = reader.next() {
@@ -91,7 +91,7 @@ fn main() {
 
     eprintln!("[INFO] {} contigs | {} threads", contigs.len(), cli.parallel);
 
-    // parallel contigs
+    // parallel contigs immutable reference na celý tuple, seq je &Vec<u8> automaticky se dereferencuje na &[u8] pouze cteni ne zapis
     let merged: HashMap<String, Vec<String>> = contigs
         .par_iter()
         .map(|(acc, seq)| {

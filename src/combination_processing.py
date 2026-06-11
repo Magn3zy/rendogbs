@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
 """
 combination_processing.py  -  Prvni krok
-
 Mod renda (fast / custom), kontroluje nazvy enzymu oproti masteru enzymes.csv
 vypisuje do <workdir>/results/:
-
-  enzymes_run.csv   - sekvence pouze pro tento beh
-                      sloupce: enzyme_name, expanded_sequence, cut_offset
-                      primo pro rust
-
-  combinations.csv  - overene kombinace enzymu co existuji
-                      sloupce: enzyme_a, enzyme_b
-                      (pro rendogbs_pipeline.py)
-
+  enzymes_run.csv   - sekvence pouze pro tento beh sloupce: enzyme_name, expanded_sequence, cut_offset primo pro rust
+  combinations.csv  - overene kombinace enzymu co existuji sloupce: enzyme_a, enzyme_b (pro rendogbs_pipeline.py)
 Implementace (rendogbs.sh):
   python combination_processing.py \\
       --enzymes-csv  enzymes.csv \\
@@ -65,7 +57,7 @@ def load_enzymes_csv(path):
     return db
 
 # kombinace pro rendogbs_pipeline
-def load_combinations_file(path):
+def load_custom(path):
     if not path:
         sys.exit('[ERROR] --combinations custom requires --combinations-file')
     combos = []
@@ -74,7 +66,7 @@ def load_combinations_file(path):
         next(reader, None) # preskoceni hlavicky
         for i, parts in enumerate(reader, 2):
             if len(parts) != 2:
-                print(f'  [WARN] Line {i+1} bad format, skipping: {line!r}') 
+                print(f'  [WARN] Line {i} bad format, skipping: {parts}') 
                 continue
             combos.append((parts[0].strip(), parts[1].strip()))
     return combos
@@ -97,12 +89,11 @@ def main():
 
     # kontrola zda je enzym v seznamu
     print(f'[2/3] Resolving combinations: {args.combinations}')
-    raw_combos = resolve_combinations(
-        args.combinations, args.combinations_file, list(enzyme_db.keys()))
+    raw_combos = (FAST_COMBOS if args.combinations == 'fast' else load_custom(args.combinations_file))
 
-    valid_combos = []
+    valid_combos = [] # oba enzymy musi byt v seznamu
     for ea, eb in raw_combos:
-        missing = [e for e in (ea, eb) if e not in enzyme_db]
+        missing = [e for e in (ea, eb) if e not in enzyme_db] # pokud alespon jeden z dvojice neni v seznamu vyhodit kombinaci
         if missing:
             print(f'  [WARN] {missing} not in enzymes.csv, skipping {ea}+{eb}')
             continue
@@ -113,28 +104,20 @@ def main():
         sys.exit(1)
     print(f'      {len(valid_combos)} valid combinations')
 
-    # unikatni enzymy pro tento beh
-    needed = set()
-    for ea, eb in valid_combos:
-        needed.add(ea)
-        needed.add(eb)
+    # unikatni enzymy pro tento beh - priprava aby se neopakovali pro aho_corasick rendogbs_finder
+    needed = sorted({e for pair in valid_combos for e in pair})
     print(f'      {len(needed)} unique enzymes needed')
 
     # zapis enzymes_run.csv 3 sloupce pro rust
     print('[3/3] Writing run files ...')
     enzymes_run_path = os.path.join(results_dir, 'enzymes_run.csv')
-    rows_written = 0
+    rows = [row for name in needed for row in enzyme_db[name]]
     with open(enzymes_run_path, 'w', newline='') as fh:
-        w = csv.writer(fh)
-        w.writerow(['enzyme_name', 'expanded_sequence', 'cut_offset'])
-        for name in sorted(needed):
-            for row in enzyme_db[name]:
-                w.writerow([row['enzyme_name'],
-                             row['expanded_sequence'],
-                             row['cut_offset']])
-                rows_written += 1
+        w = csv.DictWriter(fh, fieldnames=['enzyme_name', 'expanded_sequence', 'cut_offset'])
+        w.writeheader()
+        w.writerows(rows)
 
-    print(f'  -> enzymes_run.csv  : {rows_written} rows ({len(needed)} enzymes)')
+    print(f'  -> enzymes_run.csv  : {len(rows)} rows ({len(needed)} enzymes)')
 
     # zapis combinations.csv
     combos_path = os.path.join(results_dir, 'combinations.csv')
@@ -142,10 +125,8 @@ def main():
         w = csv.writer(fh)
         w.writerow(['enzyme_a', 'enzyme_b'])
         w.writerows(valid_combos)
-
     print(f'  -> combinations.csv : {len(valid_combos)} pairs')
     print(f'\n[OK] {results_dir}')
-
 
 if __name__ == '__main__':
     main()
