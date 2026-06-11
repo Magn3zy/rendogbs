@@ -6,7 +6,7 @@ description = "Aho-Corasick cut-site finder for rendogbs pipeline"
 
 [[bin]]
 name = "rendogbs_finder"
-path = "src/main.rs"
+path = "main.rs"
 
 [dependencies]
 # Aho-Corasick multi-pattern search
