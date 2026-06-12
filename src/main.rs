@@ -9,7 +9,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::mpsc,
     thread,
 };
@@ -26,10 +26,11 @@ struct Enzyme {
     cut_offset: i64,
 }
 
-// message through channel = one hit
 struct Hit {
-    enzyme_name: String,
-    row: String, // "accession,motif_start,cut_position"
+    enzyme_idx:  u32,
+    acc_idx:     u32,
+    motif_start: u64,
+    cut_position: i64,
 }
 
 #[derive(Parser)]
@@ -48,47 +49,27 @@ struct Cli {
     parallel: usize,
 }
 
-fn main() {
-    let cli = Cli::parse();
-
-    // at leats 1 writer + N-1 searchers
-    let search_threads = cli.parallel.saturating_sub(1).max(1);
-
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(search_threads)
-        .build_global()
-        .unwrap();
-
-    fs::create_dir_all(&cli.out_dir).unwrap();
-
-    // load enzymes 
-    let mut enzymes: Vec<Enzyme> = Vec::new();
+fn load_enzymes(path: &Path) -> Vec<Enzyme> {
     let mut rdr = ReaderBuilder::new()
         .has_headers(true)
-        .from_path(&cli.enzymes_run)
+        .from_path(path)
         .expect("Cannot open enzymes_run.csv");
 
-    for rec in rdr.records() {
-        let rec = rec.expect("Invalid CSV row");
-        enzymes.push(Enzyme {
-            name: rec[0].to_string(),
-            sequence: rec[1].to_string(),
-            cut_offset: rec[2].parse().expect("Invalid cut_offset"),
-        });
-    }
-    eprintln!("[INFO] {} patterns loaded", enzymes.len());
+    rdr.records()
+        .map(|rec| {
+            let rec = rec.expect("Invalid CSV row");
+            Enzyme {
+                name: rec[0].to_string(),
+                sequence: rec[1].to_string(),
+                cut_offset: rec[2].parse().expect("Invalid cut_offset"),
+            }
+        })
+        .collect()
+}
 
-    // build AhoCorasick
-    let patterns: Vec<&str> = enzymes.iter().map(|e| e.sequence.as_str()).collect();
-    let ac = AhoCorasick::builder()
-        .ascii_case_insensitive(true)
-        .build(&patterns)
-        .expect("AhoCorasick build failed");
-
-    // load fasta
+fn load_contigs(path: &Path) -> Vec<(String, Vec<u8>)> {
     let mut contigs: Vec<(String, Vec<u8>)> = Vec::new();
-    let mut reader = needletail::parse_fastx_file(&cli.r#ref)
-        .expect("Cannot read FASTA");
+    let mut reader = needletail::parse_fastx_file(path).expect("Cannot read FASTA");
 
     while let Some(rec) = reader.next() {
         let rec = rec.expect("FASTA parse error");
@@ -100,58 +81,91 @@ fn main() {
             .to_string();
         contigs.push((acc, rec.seq().to_vec()));
     }
+    contigs
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    // at least 1 writer + N-1 searchers
+    let search_threads = cli.parallel.saturating_sub(1).max(1);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(search_threads)
+        .build_global()
+        .unwrap();
+
+    fs::create_dir_all(&cli.out_dir).unwrap();
+
+    let enzymes = load_enzymes(&cli.enzymes_run);
+    eprintln!("[INFO] {} patterns loaded", enzymes.len());
+
+    let patterns: Vec<&str> = enzymes.iter().map(|e| e.sequence.as_str()).collect();
+    let ac = AhoCorasick::builder()
+        .ascii_case_insensitive(true)
+        .build(&patterns)
+        .expect("AhoCorasick build failed");
+
+    let contigs = load_contigs(&cli.r#ref);
     eprintln!(
         "[INFO] {} contigs | {} search threads + 1 writer thread",
         contigs.len(),
         search_threads
     );
 
-    // search and writter thead
-    let (tx, rx) = mpsc::sync_channel::<Hit>(65536); // backpressure buffer
+    let (tx, rx) = mpsc::sync_channel::<Hit>(65536);
 
+    // writer thread outside of rayon pool
     let out_dir = cli.out_dir.clone();
-
-    // writter thread outside of rayonpool
+    let enzyme_names: Vec<String> = enzymes.iter().map(|e| e.name.clone()).collect();
+    let acc_names_owned: Vec<String> = contigs.iter().map(|(acc, _)| acc.clone()).collect();
     let writer_handle = thread::spawn(move || {
-        // lazy open after first Hit
-        let mut writers: HashMap<String, BufWriter<fs::File>> = HashMap::new();
+        let mut writers: HashMap<u32, BufWriter<fs::File>> = HashMap::new();
 
         for hit in rx {
-            let w = writers.entry(hit.enzyme_name.clone()).or_insert_with(|| {
-                let path = out_dir.join(format!("{}.csv", hit.enzyme_name));
+            let w = writers.entry(hit.enzyme_idx).or_insert_with(|| {
+                let name = &enzyme_names[hit.enzyme_idx as usize];
+                let path = out_dir.join(format!("{}.csv", name));
                 let mut bw = BufWriter::with_capacity(
-                    1 << 20, // 1MB buffer
-                    fs::File::create(&path).unwrap()
+                    1 << 20, // 1 MB buffer
+                    fs::File::create(&path).unwrap(),
                 );
                 writeln!(bw, "accession,motif_start,cut_position").unwrap();
-                eprintln!("  -> {}.csv (created)", hit.enzyme_name);
+                eprintln!("  -> {}.csv (created)", name);
                 bw
             });
 
-            writeln!(w, "{}", hit.row).unwrap();
+            writeln!(
+                w,
+                "{},{},{}",
+                acc_names_owned[hit.acc_idx as usize],
+                hit.motif_start,
+                hit.cut_position,
+            )
+            .unwrap();
         }
 
-        // channel closed - flush writter
+        // channel closed — flush writer
         for (_, mut w) in writers {
             w.flush().unwrap();
         }
     });
 
-    //  parallel search par_iter between contigs and find_overlapping_iter
-    contigs.par_iter().for_each_with(tx, |tx, (acc, seq)| {
+    // parallel search
+    contigs.par_iter().enumerate().for_each_with(tx, |tx, (acc_idx, (_acc, seq))| {
         for m in ac.find_overlapping_iter(seq) {
             let idx = m.pattern().as_usize();
-            let enzyme = &enzymes[idx];
-            let cut = m.start() as i64 + enzyme.cut_offset;
+            let cut = m.start() as i64 + enzymes[idx].cut_offset;
 
             tx.send(Hit {
-                enzyme_name: enzyme.name.clone(),
-                row: format!("{},{},{}", acc, m.start(), cut),
+                enzyme_idx: idx as u32,
+                acc_idx: acc_idx as u32,
+                motif_start: m.start() as u64,
+                cut_position: cut,
             })
             .expect("Writer thread died unexpectedly");
         }
     });
-    // tx drop rx loop inside writter ended
+    // tx dropped here — rx loop inside writer ends
 
     writer_handle.join().expect("Writer thread panicked");
     eprintln!("[OK] done.");
