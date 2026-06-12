@@ -88,7 +88,6 @@ fn load_contigs(path: &Path) -> Vec<(String, Vec<u8>)> {
 fn main() {
     let cli = Cli::parse();
 
-    // at least 1 writer + N-1 searchers
     let search_threads = cli.parallel.saturating_sub(1).max(1);
     rayon::ThreadPoolBuilder::new()
         .num_threads(search_threads)
@@ -115,23 +114,32 @@ fn main() {
 
     let (tx, rx) = mpsc::sync_channel::<Hit>(65536);
 
-    // writer thread outside of rayon pool
     let out_dir = cli.out_dir.clone();
     let enzyme_names: Vec<String> = enzymes.iter().map(|e| e.name.clone()).collect();
     let acc_names_owned: Vec<String> = contigs.iter().map(|(acc, _)| acc.clone()).collect();
+
     let writer_handle = thread::spawn(move || {
-        // Vec<u8> per enzyme — everything in RAM, write at the end
-        let mut buffers: HashMap<u32, Vec<u8>> = HashMap::new();
+        // klíč = název enzymu — více IUPAC variant stejného enzymu → jeden soubor
+        let mut files:    HashMap<String, fs::File> = HashMap::new();
+        let mut buffers:  HashMap<String, Vec<u8>>  = HashMap::new(); // cant be torn appart during flush
+        let mut expected: HashMap<String, u64>       = HashMap::new();
+
+        const FLUSH_BYTES: usize = 64 * 1024 * 1024; // 64kB passed test 64 MB for production
 
         for hit in rx {
-            let buf = buffers.entry(hit.enzyme_idx).or_insert_with(|| {
-                let name = &enzyme_names[hit.enzyme_idx as usize];
-                eprintln!("  -> {}.csv (created)", name);
-                let mut v = Vec::with_capacity(1 << 20);
-                v.extend_from_slice(b"accession,motif_start,cut_position\n");
-                v
-            });
+            let name = enzyme_names[hit.enzyme_idx as usize].clone();
 
+            if !files.contains_key(&name) {
+                let path = out_dir.join(format!("{}.csv", name));
+                let mut f = fs::File::create(&path).unwrap();
+                f.write_all(b"accession,motif_start,cut_position\n").unwrap();
+                eprintln!("  -> {}.csv (created)", name);
+                files.insert(name.clone(), f);
+                buffers.insert(name.clone(), Vec::with_capacity(FLUSH_BYTES + 256));
+                expected.insert(name.clone(), 0);
+            }
+
+            let buf = buffers.get_mut(&name).unwrap();
             write!(
                 buf,
                 "{},{},{}\n",
@@ -139,18 +147,39 @@ fn main() {
                 hit.motif_start,
                 hit.cut_position,
             ).unwrap();
+
+            *expected.get_mut(&name).unwrap() += 1;
+
+            if buf.len() >= FLUSH_BYTES {
+                files.get_mut(&name).unwrap().write_all(buf).unwrap();
+                buf.clear();
+            }
         }
 
-        // channel closed — write all remaining
-        for (idx, buf) in &buffers {
-            let name = &enzyme_names[*idx as usize];
+        // flush last
+        for (name, buf) in &buffers {
+            if !buf.is_empty() {
+                files.get_mut(name).unwrap().write_all(buf).unwrap();
+            }
+        }
+
+        // check line counts
+        eprintln!("[CHECK] verifying line counts...");
+        let mut all_ok = true;
+        for (name, exp) in &expected {
             let path = out_dir.join(format!("{}.csv", name));
-            fs::write(&path, buf)
-                .unwrap_or_else(|_| panic!("Cannot write {:?}", path));
+            let content = fs::read(&path).unwrap();
+            let actual = content.iter().filter(|&&b| b == b'\n').count() as u64 - 1;
+            if actual != *exp {
+                eprintln!("[MISMATCH] {}: expected {} rows, got {}", name, exp, actual);
+                all_ok = false;
+            }
+        }
+        if all_ok {
+            eprintln!("[CHECK] all line counts OK");
         }
     });
 
-    // parallel search
     contigs.par_iter().enumerate().for_each_with(tx, |tx, (acc_idx, (_acc, seq))| {
         for m in ac.find_overlapping_iter(seq) {
             let idx = m.pattern().as_usize();
@@ -165,7 +194,6 @@ fn main() {
             .expect("Writer thread died unexpectedly");
         }
     });
-    // tx dropped here — rx loop inside writer ends
 
     writer_handle.join().expect("Writer thread panicked");
     eprintln!("[OK] done.");
