@@ -8,7 +8,7 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{BufWriter, Write},
+    io::Write,
     path::{Path, PathBuf},
     sync::mpsc,
     thread,
@@ -27,9 +27,9 @@ struct Enzyme {
 }
 
 struct Hit {
-    enzyme_idx:  u32,
-    acc_idx:     u32,
-    motif_start: u64,
+    enzyme_idx:   u32,
+    acc_idx:      u32,
+    motif_start:  u64,
     cut_position: i64,
 }
 
@@ -78,6 +78,7 @@ fn load_contigs(path: &Path) -> Vec<(String, Vec<u8>)> {
             .split_whitespace()
             .next()
             .unwrap_or("?")
+            .trim_end_matches('\r')
             .to_string();
         contigs.push((acc, rec.seq().to_vec()));
     }
@@ -119,34 +120,33 @@ fn main() {
     let enzyme_names: Vec<String> = enzymes.iter().map(|e| e.name.clone()).collect();
     let acc_names_owned: Vec<String> = contigs.iter().map(|(acc, _)| acc.clone()).collect();
     let writer_handle = thread::spawn(move || {
-        let mut writers: HashMap<u32, BufWriter<fs::File>> = HashMap::new();
+        // Vec<u8> per enzyme — everything in RAM, write at the end
+        let mut buffers: HashMap<u32, Vec<u8>> = HashMap::new();
 
         for hit in rx {
-            let w = writers.entry(hit.enzyme_idx).or_insert_with(|| {
+            let buf = buffers.entry(hit.enzyme_idx).or_insert_with(|| {
                 let name = &enzyme_names[hit.enzyme_idx as usize];
-                let path = out_dir.join(format!("{}.csv", name));
-                let mut bw = BufWriter::with_capacity(
-                    1 << 20, // 1 MB buffer
-                    fs::File::create(&path).unwrap(),
-                );
-                writeln!(bw, "accession,motif_start,cut_position").unwrap();
                 eprintln!("  -> {}.csv (created)", name);
-                bw
+                let mut v = Vec::with_capacity(1 << 20);
+                v.extend_from_slice(b"accession,motif_start,cut_position\n");
+                v
             });
 
-            writeln!(
-                w,
-                "{},{},{}",
+            write!(
+                buf,
+                "{},{},{}\n",
                 acc_names_owned[hit.acc_idx as usize],
                 hit.motif_start,
                 hit.cut_position,
-            )
-            .unwrap();
+            ).unwrap();
         }
 
-        // channel closed — flush writer
-        for (_, mut w) in writers {
-            w.flush().unwrap();
+        // channel closed — write all remaining
+        for (idx, buf) in &buffers {
+            let name = &enzyme_names[*idx as usize];
+            let path = out_dir.join(format!("{}.csv", name));
+            fs::write(&path, buf)
+                .unwrap_or_else(|_| panic!("Cannot write {:?}", path));
         }
     });
 
@@ -157,9 +157,9 @@ fn main() {
             let cut = m.start() as i64 + enzymes[idx].cut_offset;
 
             tx.send(Hit {
-                enzyme_idx: idx as u32,
-                acc_idx: acc_idx as u32,
-                motif_start: m.start() as u64,
+                enzyme_idx:   idx as u32,
+                acc_idx:      acc_idx as u32,
+                motif_start:  m.start() as u64,
                 cut_position: cut,
             })
             .expect("Writer thread died unexpectedly");
