@@ -63,10 +63,10 @@ def load_custom(path) -> list[tuple[str, str]]:
     combos = []
     with open(path, newline='') as fh:
         reader = csv.reader(fh)
-        next(reader, None) # skip header
+        next(reader, None)  # skip header
         for i, parts in enumerate(reader, 2):
             if len(parts) != 2:
-                print(f'  [WARN] Line {i} bad format, skipping: {parts}') 
+                print(f'  [WARN] Line {i} bad format, skipping: {parts}')
                 continue
             combos.append((parts[0].strip(), parts[1].strip()))
     return combos
@@ -74,9 +74,10 @@ def load_custom(path) -> list[tuple[str, str]]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--enzymes-csv', required=True)
-    parser.add_argument('--workdir', required=True,)
+    parser.add_argument('--workdir', required=True)
     parser.add_argument('--combinations', default='fast', choices=['fast', 'custom'])
     parser.add_argument('--combinations-file', default=None)
+    parser.add_argument('--allowed-pairs', default=None)
     args = parser.parse_args()
 
     results_dir = os.path.join(args.workdir, 'results')
@@ -86,16 +87,40 @@ def main():
     enzyme_db: dict[str, list[dict]] = load_enzymes_csv(args.enzymes_csv)
     print(f'      {len(enzyme_db)} enzymes in master CSV')
 
-    # check - is enzyme in the enzymes.csv
+    # allowed pairs
+    if args.allowed_pairs:
+        allowed_path = args.allowed_pairs
+    else:
+        base_dir = os.path.dirname(args.enzymes_csv)
+        allowed_path = os.path.join(base_dir, "allowed_pairs.csv")
+
+    if not os.path.isfile(allowed_path):
+        sys.exit(f'[ERROR] allowed_pairs.csv not found: {allowed_path}')
+
+    allowed_set = set()
+    with open(allowed_path, newline='') as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            a = row['enzyme_a'].strip()
+            b = row['enzyme_b'].strip()
+            allowed_set.add(tuple(sorted((a, b))))
+
+    # check - is enzyme in the enzymes.csv and is pair allowed
     print(f'[2/3] Resolving combinations: {args.combinations}')
     raw_combos = (FAST_COMBOS if args.combinations == 'fast' else load_custom(args.combinations_file))
 
-    valid_combos: list[tuple[str, str]] = [] # both enzymes must be in enzyme_db
+    valid_combos: list[tuple[str, str]] = []  # both enzymes must be in enzyme_db and allowed_set
     for ea, eb in raw_combos:
-        missing = [e for e in (ea, eb) if e not in enzyme_db] # if any is missing discard the pair
+        missing = [e for e in (ea, eb) if e not in enzyme_db]
         if missing:
             print(f'  [WARN] {missing} not in enzymes.csv, skipping {ea}+{eb}')
             continue
+
+        key = tuple(sorted((ea, eb)))
+        if key not in allowed_set:
+            print(f'  [WARN] {ea}+{eb} was rejected, cannot simulate whole overlapping recognition sites')
+            continue
+
         valid_combos.append((ea, eb))
 
     if not valid_combos:
