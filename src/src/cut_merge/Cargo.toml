@@ -1,0 +1,20 @@
+[package]
+name = "cut_merge"
+version = "0.1.0"
+edition = "2021"
+description = "Cut merge"
+
+[[bin]]
+name = "cut_merge"
+path = "cut_merge.rs"
+
+[dependencies]
+csv = "1"
+clap = { version = "4", features = ["derive"] }
+rayon = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
