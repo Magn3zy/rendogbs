@@ -31,8 +31,8 @@ struct Fragment {
 
 #[derive(Clone, Debug)]
 struct SizeRange {
-    low:  u64,
-    high: u64,
+    low:  i64,
+    high: i64,
 }
 
 fn parse_size_range(s: &str) -> Result<SizeRange, String> {
@@ -40,15 +40,26 @@ fn parse_size_range(s: &str) -> Result<SizeRange, String> {
         .split_once('-')
         .ok_or_else(|| format!("--size must be LOW-HIGH, e.g. 150-350, you wrote: '{}'", s))?;
 
+    let low: i64 = low_str
+        .parse()
+        .map_err(|_| format!("Invalid number: {}", low_str))?;
+
+    let high: i64 = high_str
+        .parse()
+        .map_err(|_| format!("Invalid number: {}", high_str))?;
+
     if low > high {
-        return Err(format!("LOW ({}) must be lower than HIGH ({})", low, high));
+        return Err(format!(
+            "LOW ({}) must be lower than HIGH ({})",
+            low, high
+        ));
     }
 
     Ok(SizeRange { low, high })
 }
 
 #[derive(Parser)]
-#[command(name = "fragments_generation")]
+#[command(name = "fragment_generation")]
 struct Cli {
     #[arg(long)]
     out_dir: PathBuf,
@@ -128,7 +139,7 @@ fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
             start_pos:    a.pos,
             start_enzyme: a.enzyme.clone(),
             end_enzyme:   b.enzyme.clone(),
-            fragment_length,
+            fragment_length: b.pos - a.pos,
         });
     }
 

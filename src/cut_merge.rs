@@ -103,7 +103,7 @@ fn process_combo(
     assert!(path_a.exists(), "Missing cuts file: {:?}", path_a);
     assert!(path_b.exists(), "Missing cuts file: {:?}", path_b);
 
-    let mut cuts = {
+    let cuts = {
         let mut merged = load_cuts(&path_a, ea);
         let mut cuts_b = load_cuts(&path_b, eb);
         merged.append(&mut cuts_b);
