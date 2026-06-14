@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
-import os
 import shutil
 import subprocess
 import sys
@@ -20,7 +19,7 @@ from typing import Any
 class AnnotationSource:
     kind: str          # "gff" or "te"
     path: str          # direct GFF path or converted BED path
-    label_prefix: str  # "gff:" or "te:"
+    label_prefix: str  # "gff_" or "te_"
 
 
 FragmentRow = tuple[str, int, str, str, int]
@@ -33,8 +32,7 @@ def open_text(path: Path):
 def check_bedtools() -> str:
     bedtools = shutil.which("bedtools")
     if bedtools is None:
-        raise SystemExit(
-            "[ERROR] bedtools not found in PATH.\n")
+        raise SystemExit("[ERROR] bedtools not found in PATH.\n")
     return bedtools
 
 
@@ -59,15 +57,13 @@ def read_filtered_csv(path: Path) -> list[FragmentRow]:
 
         rows: list[FragmentRow] = []
         for row in reader:
-            rows.append(
-                (
-                    row["accession"],
-                    int(row["start_pos"]),
-                    row["start_enzyme"],
-                    row["end_enzyme"],
-                    int(row["fragment_length"]),
-                )
-            )
+            rows.append((
+                row["accession"],
+                int(row["start_pos"]),
+                row["start_enzyme"],
+                row["end_enzyme"],
+                int(row["fragment_length"]),
+            ))
     return rows
 
 
@@ -90,16 +86,13 @@ def convert_repeatmasker_out_to_bed(te_path: Path, out_path: Path) -> None:
             parts = line.split()
             if len(parts) < 15:
                 continue
-
             try:
                 chrom = parts[4]
                 start = max(0, int(parts[5]) - 1)
                 end = int(parts[6])
-
                 te_class = parts[10].split("/")[0]
                 te_family = parts[10].split("/")[1] if "/" in parts[10] else parts[10]
-                label = f"te:{te_class}_{te_family}"
-
+                label = f"te_{te_class}_{te_family}"
                 out.write(f"{chrom}\t{start}\t{end}\t{label}\n")
             except (ValueError, IndexError):
                 continue
@@ -108,7 +101,7 @@ def convert_repeatmasker_out_to_bed(te_path: Path, out_path: Path) -> None:
 def parse_gff_label_from_intersect_line(parts: list[str]) -> str:
     # A has 4 cols, GFF has 9 cols, overlap is last column.
     # GFF feature type is column 3 (0-based index 2) -> output index 4 + 2 = 6.
-    return f"gff:{parts[6]}"
+    return f"gff_{parts[6]}"
 
 
 def parse_bed_label_from_intersect_line(parts: list[str]) -> str:
@@ -123,15 +116,7 @@ def run_bedtools_intersect(
     annotation_path: Path,
     kind: str,
 ) -> dict[str, int]:
-    cmd = [
-        bedtools,
-        "intersect",
-        "-a",
-        str(filtered_bed),
-        "-b",
-        str(annotation_path),
-        "-wo",
-    ]
+    cmd = [bedtools, "intersect", "-a", str(filtered_bed), "-b", str(annotation_path), "-wo"]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(
@@ -218,10 +203,10 @@ def parse_args() -> argparse.Namespace:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--workdir", required=True, help="Root workdir containing results/")
-    p.add_argument("--te", default=None, help="RepeatMasker .out file")
-    p.add_argument("--annotation", default=None, help="GFF3/GFF/GTF annotation file")
-    p.add_argument("--threads", type=int, default=4, help="Number of combinations processed in parallel")
+    p.add_argument("--workdir",    required=True, help="Root workdir containing results/")
+    p.add_argument("--te",         default=None,  help="RepeatMasker .out file")
+    p.add_argument("--annotation", default=None,  help="GFF3/GFF/GTF annotation file")
+    p.add_argument("--threads",    type=int, default=4, help="Number of combinations processed in parallel")
     return p.parse_args()
 
 
@@ -231,8 +216,8 @@ def main() -> None:
     if args.threads < 1:
         raise SystemExit("[ERROR] --threads must be >= 1")
 
-    workdir = Path(args.workdir)
-    results_dir = workdir / "results"
+    workdir          = Path(args.workdir)
+    results_dir      = workdir / "results"
     combinations_csv = results_dir / "combinations.csv"
 
     if not results_dir.exists():
@@ -242,7 +227,7 @@ def main() -> None:
     if not args.te and not args.annotation:
         raise SystemExit("[ERROR] Provide --te, --annotation, or both")
 
-    bedtools = check_bedtools()
+    bedtools    = check_bedtools()
     combo_names = load_combinations_csv(combinations_csv)
 
     for combo_name in combo_names:
@@ -259,13 +244,13 @@ def main() -> None:
         converted_bed = results_dir / "repeatmasker_converted.bed"
         print(f"[INFO] Converting {te_path} -> {converted_bed}")
         convert_repeatmasker_out_to_bed(te_path, converted_bed)
-        sources.append(AnnotationSource(kind="te", path=str(converted_bed), label_prefix="te:"))
+        sources.append(AnnotationSource(kind="te", path=str(converted_bed), label_prefix="te_"))
 
     if args.annotation:
         ann_path = Path(args.annotation)
         if not ann_path.exists():
             raise SystemExit(f"[ERROR] Annotation file not found: {ann_path}")
-        sources.append(AnnotationSource(kind="gff", path=str(ann_path), label_prefix="gff:"))
+        sources.append(AnnotationSource(kind="gff", path=str(ann_path), label_prefix="gff_"))
 
     print(f"[INFO] Processing {len(combo_names)} combination(s) | threads={args.threads}")
 
