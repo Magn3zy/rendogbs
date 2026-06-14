@@ -1,0 +1,171 @@
+#### Wrapper - arguments ####
+1) combinations_processing.py 
+    --workdir
+    --combinations fast/custom
+    (--combinations-dir (custom) /path/to/combinations_custom.csv)
+
+2) rendogbs_finder 
+    --workdir
+    --ref
+    --parallel
+
+3) cut_merge
+    --workdir
+    --parallel
+
+4) fragment_generation.py
+    --workdir
+    --parallel
+    --size e.g. 150-350
+
+5) fragment_generation
+    --workdir
+    --parallel
+
+6) postprocess_metrics.py
+    --workdir
+    --ref   
+    --parallel
+    --size e.g. 150-350
+
+7) annotation.py #pokud ani jedno nezapneme script
+    --workdir
+    --parallel
+    (--te)
+    (--annotation) 
+
+8) summary.py
+    --workdir
+
+9) plots.py
+    --workdir
+    --size e.g. 150-350
+    --chroms
+    --dpi
+
+
+#### Inputs and outputs (dependencies of each script) ####
+1) combinations_processing.py 
+    input   - fast - not needed
+            - custom - combinations-file xxx.csv needed 
+
+    dependency of the script inside <workdir>   <-- ideally copy there these 2 files
+            - <workdir>/allowed_combinations.csv
+            - <workdir>/enzymes.csv
+
+    output inside <workdir>/results/
+            - workdir>/results/enzymes_run.csv
+            - workdir>/results/combinations.csv
+
+2) rendogbs_finder - Rust binary
+    input   - <workdir>/results/enzymes_run.csv
+            - <workdir>enzymes.csv
+            - /path/from/user/ref.fasta
+
+    output generation of <workdir>/results/cuts/
+            - <workdir>/results/cuts/enzyme.csv
+
+3) cut_merge - Rust binary
+    input   - <workdir>/results/cuts/enzyme.csv
+            - <workdir>/results/combinations.csv
+
+    output  - <workdir>/results/<EnzA_EnzB>/cuts.csv
+
+4) fragment_generation.py
+    input   - <workdir>/results/<EnzA_EnzB>/cuts.csv
+            - <workdir>/enzymes.csv
+            - <workdir>/results/enzymes_run.csv
+    
+    output  - <workdir>/results/<EnzA_EnzB>/filtered.csv
+            - <workdir>/results/<EnzA_EnzB>/statistics_uncertain.csv
+            - <workdir>/results/<EnzA_EnzB>/statistics_cutting.csv
+            - <workdir>/results/batch_summary.csv
+
+5) fragment_generation - Rust binary
+    input   - <workdir>/results/<EnzA_EnzB>/cuts.csv
+            - <workdir>/results/combinations.csv
+
+    output  - <workdir>/results/<EnzA_EnzB>/fragments.csv
+
+6) postprocess_metrics.py
+    input   - <path_from_user>/ref.fasta
+            - <workdir>/results/<EnzA_EnzB>/filtered.csv
+            - <workdir>/results/<EnzA_EnzB>/fragments.csv
+            - <workdir>/results/combinations.csv
+
+    output  - <workdir>/results/<EnzA_EnzB>/distribution.csv
+            - <workdir>/results/<EnzA_EnzB>/gc_metrics.csv
+
+7) annotation.py       <-- optional run determined by --te / --annotation
+    input   - <path_from_user>/annotation.gff/gff3
+            - <path_from_user>/rm.out
+            - <workdir>/results/<EnzA_EnzB>/filtered.csv
+
+    dependency
+            - bedtools
+
+    output  - <workdir>/results/<EnzA_EnzB>/annotation_summary.csv
+
+8) summary.py
+    input   - <workdir>/results/<EnzA_EnzB>/statistics_cutting.csv
+            - <workdir>/results/<EnzA_EnzB>/gc_metrics.csv
+            - <workdir>/results/<EnzA_EnzB>/distribution.csv
+            - <workdir>/results/<EnzA_EnzB>/annotation.csv <-- not needed if annotation.py didn't run
+            - <workdir>/results/combinations.csv
+
+    output  - <workdir>/results/summary.tsv
+
+9) plots.py
+    input   - <workdir>/results/<EnzA_EnzB>/<most_of_csv>.csv
+
+    output  - <workdir>/results/plots/size_distribution.png
+            - <workdir>/results/plots/annotation_coverage.png
+            - <workdir>/results/plots/gc_distribution.png
+            - <workdir>/results/plots/bar_chrom_distribution.png
+            - <workdir>/results/plots/heatmap_chrom_distribution.png
+            - <workdir>/results/plots/heatmap_fragment_lenght.png
+
+
+#### File tree ####
+
+<workdir>/
+|-- allowed_combinations.csv
+|-- enzymes.csv
+|-- ref.fasta
+|-- annotation.gff / annotation.gff3        (optional)
+|-- rm.out                                  (optional)
+|-- results/
+    |-- enzymes_run.csv
+    |-- combinations.csv
+    |-- cuts/
+    |   |-- enzyme.csv
+    |-- <EnzA_EnzB>/
+    |   |-- cuts.csv
+    |   |-- filtered.csv
+    |   |-- statistics_uncertain.csv
+    |   |-- statistics_cutting.csv
+    |   |-- fragments.csv
+    |   |-- distribution.csv
+    |   |-- gc_metrics.csv
+    |   |-- annotation_summary.csv         (only if annotation.py ran)
+    |-- batch_summary.csv
+    |-- summary.tsv
+    |-- plots/
+        |-- size_distribution.png
+        |-- annotation_coverage.png
+        |-- gc_distribution.png
+        |-- bar_chrom_distribution.png
+        |-- heatmap_chrom_distribution.png
+        |-- heatmap_fragment_lenght.png
+
+scripts/
+|-- combinations_processing.py
+|-- rendogbs_finder                        (Rust binary)
+|-- cut_merge                               (Rust binary)
+|-- fragment_generation.py
+|-- fragment_generation                    (Rust binary)
+|-- postprocess_metrics.py
+|-- annotation.py
+|-- summary.py
+|-- plots.py
+                                
