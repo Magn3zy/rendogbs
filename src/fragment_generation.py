@@ -3,10 +3,7 @@
 fragment_generation.py — ddRAD fragment caller.
 Batch mode pro více kombinací:
    python3 fragment_generation.py \
-     --combinations combinations.csv \
-     --cuts-root results \
-     --outdir-root results \
-     --enzyme-dict enzymes.csv \
+     --workdir run1 \
      --size 150-350 \
      --parallel 3
 """
@@ -47,13 +44,9 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    p.add_argument("--combinations", required=True)
-    p.add_argument("--cuts-root",    required=True)
-    p.add_argument("--outdir-root",  required=True)
-    p.add_argument("--cuts-file", default="cuts.csv")
-    p.add_argument("--enzyme-dict", required=True)
-    p.add_argument("--size",        required=True)
-    p.add_argument("--parallel",    type=int, default=2)
+    p.add_argument("--workdir", required=True)
+    p.add_argument("--size", required=True)
+    p.add_argument("--parallel", type=int, default=2)
     return p.parse_args()
 
 def load_enzyme_dict(path: Path) -> dict[str, tuple[int, int]]:
@@ -381,7 +374,10 @@ def load_combinations(path: Path) -> list[tuple[str, str]]:
     df = pd.read_csv(path, dtype=str)
     df.columns = df.columns.str.strip()
 
-    if {"enzyme1", "enzyme2"}.issubset(df.columns):
+    if {"enzyme_a", "enzyme_b"}.issubset(df.columns):
+        pairs = list(zip(df["enzyme_a"].astype(str), df["enzyme_b"].astype(str)))
+
+    elif {"enzyme1", "enzyme2"}.issubset(df.columns):
         pairs = list(zip(df["enzyme1"].astype(str), df["enzyme2"].astype(str)))
 
     elif "combo" in df.columns:
@@ -502,17 +498,24 @@ def run_batch(
 
 def main() -> None:
     args        = parse_args()
-    enzyme_dict = Path(args.enzyme_dict)
     min_size, max_size = parse_size_range(args.size)
+
+    script_dir = Path(__file__).resolve().parent
+    enzyme_dict = script_dir / "enzymes.csv"
 
     if not enzyme_dict.exists():
         sys.exit(f"[ERROR] Enzyme dict not found: {enzyme_dict}")
 
+    results_dir = Path(args.workdir) / "results"
+    combinations_path = results_dir / "combinations.csv"
+    cuts_root = results_dir
+    outdir_root = results_dir
+
     run_batch(
-        combinations_path=Path(args.combinations),
-        cuts_root=Path(args.cuts_root),
-        outdir_root=Path(args.outdir_root),
-        cuts_file=args.cuts_file,
+        combinations_path=combinations_path,
+        cuts_root=cuts_root,
+        outdir_root=outdir_root,
+        cuts_file="cuts.csv",
         enzyme_dict=enzyme_dict,
         parallel=args.parallel,
         min_size=min_size,

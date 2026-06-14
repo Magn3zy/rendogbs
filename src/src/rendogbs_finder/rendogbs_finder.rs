@@ -1,8 +1,7 @@
-// Input:  --enzymes-run  enzymes_run.csv
-//         --ref    genome.fa / .fa.gz
-//         --out-dir      output directory
-//         --parallel      N contigs processed in parallel (writers use 1, searchers use parallel-1)
-// Output: cuts/EcoRI.csv, cuts/MseI.csv ...
+// Input:  --workdir     working directory
+//         --ref         genome.fa / .fa.gz
+//         --parallel    N contigs processed in parallel (writers use 1, searchers use parallel-1)
+// Output: results/cuts/EcoRI.csv, results/cuts/MseI.csv ...
 //        header: accession,motif_start,cut_position
 
 use std::{
@@ -37,13 +36,10 @@ struct Hit {
 #[command(name = "rendogbs_finder")]
 struct Cli {
     #[arg(long)]
-    enzymes_run: PathBuf,
+    workdir: PathBuf,
 
     #[arg(long, short = 'r')]
     r#ref: PathBuf,
-
-    #[arg(long, short = 'o')]
-    out_dir: PathBuf,
 
     #[arg(long, short = 'p', default_value_t = 2)]
     parallel: usize,
@@ -94,9 +90,12 @@ fn main() {
         .build_global()
         .unwrap();
 
-    fs::create_dir_all(&cli.out_dir).unwrap();
+    let results_dir = cli.workdir.join("results");
+    let out_dir = results_dir.join("cuts");
+    fs::create_dir_all(&out_dir).unwrap();
 
-    let enzymes = load_enzymes(&cli.enzymes_run);
+    let enzymes_run = results_dir.join("enzymes_run.csv");
+    let enzymes = load_enzymes(&enzymes_run);
     eprintln!("[INFO] {} patterns loaded", enzymes.len());
 
     let patterns: Vec<&str> = enzymes.iter().map(|e| e.sequence.as_str()).collect();
@@ -114,7 +113,7 @@ fn main() {
 
     let (tx, rx) = mpsc::sync_channel::<Hit>(65536);
 
-    let out_dir = cli.out_dir.clone();
+    let out_dir = out_dir.clone();
     let enzyme_names: Vec<String> = enzymes.iter().map(|e| e.name.clone()).collect();
     let acc_names_owned: Vec<String> = contigs.iter().map(|(acc, _)| acc.clone()).collect();
 

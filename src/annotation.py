@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
+"""
+Pro Dominika: tohle v shellu ošetřit if --te / --annotation zadano uzivatelem zapnout tento script jinak ne
+arguments:      --parallel
+                --workdir
+                --te
+                --annotation
+output: /results/<EnzA_EnzB>/annotation_summary.csv
+"""
 from __future__ import annotations
-
 import argparse
 import csv
 import gzip
@@ -206,15 +213,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--workdir",    required=True, help="Root workdir containing results/")
     p.add_argument("--te",         default=None,  help="RepeatMasker .out file")
     p.add_argument("--annotation", default=None,  help="GFF3/GFF/GTF annotation file")
-    p.add_argument("--threads",    type=int, default=4, help="Number of combinations processed in parallel")
+    p.add_argument("--parallel",    type=int, default=4, help="Number of combinations processed in parallel")
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-
-    if args.threads < 1:
-        raise SystemExit("[ERROR] --threads must be >= 1")
 
     workdir          = Path(args.workdir)
     results_dir      = workdir / "results"
@@ -252,10 +256,10 @@ def main() -> None:
             raise SystemExit(f"[ERROR] Annotation file not found: {ann_path}")
         sources.append(AnnotationSource(kind="gff", path=str(ann_path), label_prefix="gff_"))
 
-    print(f"[INFO] Processing {len(combo_names)} combination(s) | threads={args.threads}")
+    print(f"[INFO] Processing {len(combo_names)} combination(s) | parallel={args.parallel}")
 
     results: list[dict[str, Any]] = []
-    with ProcessPoolExecutor(max_workers=args.threads) as executor:
+    with ProcessPoolExecutor(max_workers=args.parallel) as executor:
         futures = {
             executor.submit(process_combination, combo, str(results_dir), sources, bedtools): combo
             for combo in combo_names

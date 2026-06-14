@@ -1,0 +1,44 @@
+#### Wrapper - arguments ####
+1) combinations_processing.py 
+    --workdir
+    --combinations fast/custom
+    (--combinations-dir (custom) /path/to/combinations_custom.csv)
+
+2) rendogbs_finder 
+    --workdir
+    --ref
+    --parallel
+
+3) cut_merge
+    --workdir
+    --parallel
+
+4) fragment_generation.py
+    --workdir
+    --parallel
+    --size e.g. 150-350
+
+5) fragment_generation
+    --workdir
+    --parallel
+
+6) postprocess_metrics.py
+    --workdir
+    --ref   
+    --parallel
+    --size e.g. 150-350
+
+7) annotation.py #pokud ani jedno nezapneme script
+    --workdir
+    --parallel
+    (--te)
+    (--annotation) 
+
+8) summary.py
+    --workdir
+
+9) plots.py
+    --workdir
+    --size e.g. 150-350
+    --chroms
+    --dpi

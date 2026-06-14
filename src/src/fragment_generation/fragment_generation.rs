@@ -32,10 +32,7 @@ struct Fragment {
 #[command(name = "fragment_generation")]
 struct Cli {
     #[arg(long)]
-    out_dir: PathBuf,
-
-    #[arg(long)]
-    combinations: PathBuf,
+    workdir: PathBuf,
 
     #[arg(long, short = 'p', default_value_t = 2)]
     parallel: usize,
@@ -159,12 +156,15 @@ fn main() {
         .build_global()
         .expect("Cannot build Rayon thread pool");
 
-    let combos = load_combinations(&cli.combinations);
+    let results_dir = cli.workdir.join("results");
+    let combinations_path = results_dir.join("combinations.csv");
+
+    let combos = load_combinations(&combinations_path);
 
     println!("[INFO] combinations: {}", combos.len());
     println!("[INFO] threads:      {}", cli.parallel);
 
-    let out_dir = cli.out_dir;
+    let out_dir = results_dir;
 
     combos.par_iter().for_each(|combo| {
         process_combo(combo, &out_dir);

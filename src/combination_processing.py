@@ -6,11 +6,10 @@ vypisuje do <workdir>/results/:
   enzymes_run.csv   - sekvence pouze pro tento beh sloupce: enzyme_name, expanded_sequence, cut_offset primo pro rust
   combinations.csv  - overene kombinace enzymu co existuji sloupce: enzyme_a, enzyme_b (pro rendogbs_pipeline.py)
 Implementace (rendogbs.sh):
-  python combination_processing.py \\
-      --enzymes-csv  enzymes.csv \\
-      --workdir      ./run1 \\
-      --combinations fast \\
-      [--combinations-file my_pairs.txt]
+  python combination_processing.py \
+      --workdir      ./run1 \
+      --combinations fast/custom \
+      [--combinations-file my_pairs.csv]
 POZOR all zruseno, pak upravim help, to by bylo ohromne, neprehledne grafy a hlavne zbytecne
 """
 import os
@@ -34,11 +33,11 @@ FAST_COMBOS = [
     ('BamHI',    'MboI'),
     ('HindIII',  'MseI'),
     ('HindIII',  'NlaIII'),
-    ('NheI',  'MboI'),
-    ('NheI',  'MseI'),
+    ('NheI',     'MboI'),
+    ('NheI',     'MseI'),
     ('XbaI',     'MboI'),
-    ('SpeI',  'MboI'),
-    ('KpnI',  'MboI'),
+    ('SpeI',     'MboI'),
+    ('KpnI',     'MboI'),
     ('NcoI',     'MseI'),
     ('NcoI',     'MboI'),
     ('BglII',    'MboI'),
@@ -60,6 +59,10 @@ def load_enzymes_csv(path) -> dict[str, list[dict]]:
 def load_custom(path) -> list[tuple[str, str]]:
     if not path:
         sys.exit('[ERROR] --combinations custom requires --combinations-file')
+
+    if not os.path.isfile(path):
+        sys.exit(f'[ERROR] combinations file not found: {path}')
+
     combos = []
     with open(path, newline='') as fh:
         reader = csv.reader(fh)
@@ -73,29 +76,25 @@ def load_custom(path) -> list[tuple[str, str]]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--enzymes-csv', required=True)
     parser.add_argument('--workdir', required=True)
     parser.add_argument('--combinations', default='fast', choices=['fast', 'custom'])
     parser.add_argument('--combinations-file', default=None)
-    parser.add_argument('--allowed-pairs', default=None)
     args = parser.parse_args()
 
     results_dir = os.path.join(args.workdir, 'results')
     os.makedirs(results_dir, exist_ok=True)
 
-    print(f'[1/3] Loading: {args.enzymes_csv}')
-    enzyme_db: dict[str, list[dict]] = load_enzymes_csv(args.enzymes_csv)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    enzymes_csv = os.path.join(script_dir, 'enzymes.csv')
+    allowed_path = os.path.join(script_dir, 'allowed_pair.csv')
+
+    print(f'[1/3] Loading: {enzymes_csv}')
+    enzyme_db: dict[str, list[dict]] = load_enzymes_csv(enzymes_csv)
     print(f'      {len(enzyme_db)} enzymes in master CSV')
 
-    # allowed pairs
-    if args.allowed_pairs:
-        allowed_path = args.allowed_pairs
-    else:
-        base_dir = os.path.dirname(args.enzymes_csv)
-        allowed_path = os.path.join(base_dir, "allowed_pairs.csv")
-
     if not os.path.isfile(allowed_path):
-        sys.exit(f'[ERROR] allowed_pairs.csv not found: {allowed_path}')
+        sys.exit(f'[ERROR] allowed_pair.csv not found: {allowed_path}')
 
     allowed_set = set()
     with open(allowed_path, newline='') as fh:
@@ -107,7 +106,7 @@ def main():
 
     # check - is enzyme in the enzymes.csv and is pair allowed
     print(f'[2/3] Resolving combinations: {args.combinations}')
-    raw_combos = (FAST_COMBOS if args.combinations == 'fast' else load_custom(args.combinations_file))
+    raw_combos = FAST_COMBOS if args.combinations == 'fast' else load_custom(args.combinations_file)
 
     valid_combos: list[tuple[str, str]] = []  # both enzymes must be in enzyme_db and allowed_set
     for ea, eb in raw_combos:
@@ -149,6 +148,7 @@ def main():
         w.writerow(['enzyme_a', 'enzyme_b'])
         w.writerows(valid_combos)
     print(f'  -> combinations.csv : {len(valid_combos)} pairs')
+
     print(f'\n[OK] {results_dir}')
 
 if __name__ == '__main__':
