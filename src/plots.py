@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
-"""
-rendogbs_plots.py  -  Post-processing: plots only
-
-Reads  : <workdir>/results/
-Writes : <workdir>/results/plots/
-
-Generates:
-  - fragment length heatmap (10 bp bins, log scale)
-  - chromosome distribution heatmap + bar plot
-  - GC content summary plot
-  - annotation coverage stacked plot
-  - size distribution (100 bp bins + window highlight)
-Opravit graf na anotaci a TE rozdelit!!!
-"""
-
 import os
 import csv
 import argparse
-import sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -25,13 +9,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import LogNorm
-import matplotlib.patches as mpatches
 
 
 # global plot style
 PALETTE = "viridis"
 FIG_EXT = "png"
 _DPI = 300
+
+# categories that represent the whole genome (100%) – must be excluded
+_SKIP_CATS = {"total_filtered_bases", "gff:region"}
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
@@ -59,7 +45,7 @@ def discover_combos(results_dir):
 
 
 def read_csv_rows(path):
-    """Safe CSV loader."""
+    """Safe CSV loader (comma delimiter)."""
     if not os.path.isfile(path):
         return []
     with open(path, newline="") as fh:
@@ -87,14 +73,18 @@ def read_gc_metrics_csv(path):
 
 
 def read_annotation_summary_csv(path):
-    """category -> percentage"""
+    """
+    category -> percentage (pct_of_library).
+    Skips total_filtered_bases and gff:region (both represent 100% of genome
+    and would inflate the stacked bar beyond 100%).
+    """
     d = {}
     for row in read_csv_rows(path):
         cat = row.get("category", "")
-        if cat == "total_filtered_bases":
+        if cat in _SKIP_CATS:
             continue
         try:
-            d[cat] = float(row["percentage"])
+            d[cat] = float(row["pct_of_library"])
         except (KeyError, ValueError):
             pass
     return d
@@ -140,19 +130,16 @@ def plot_heatmap(results_dir, combos, plots_dir):
         return
 
     fig, ax = plt.subplots(figsize=(12, max(4, len(combos) * 0.4)))
-
-    im = ax.imshow(
+    ax.imshow(
         mat,
         aspect="auto",
         cmap=PALETTE,
         norm=LogNorm(vmin=1, vmax=max(mat.max(), 1)),
         origin="lower",
     )
-
     ax.set_title("Fragment length heatmap")
     ax.set_xlabel("Length (bp)")
     ax.set_ylabel("Combination")
-
     ax.set_yticks(np.arange(len(combos)))
     ax.set_yticklabels(combos, fontsize=8)
 
@@ -163,7 +150,6 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
     """Chromosome distribution heatmap + barplot."""
     contigs = read_contig_lengths_txt(results_dir)
     chroms = [c for c, _ in contigs[:n_chroms]]
-
     idx = {c: i for i, c in enumerate(chroms)}
     mat = np.zeros((len(combos), len(chroms)), dtype=np.int64)
 
@@ -179,91 +165,175 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
 
     # heatmap
     fig, ax = plt.subplots(figsize=(10, 4))
-    im = ax.imshow(mat, aspect="auto", cmap="YlOrRd", origin="lower")
+    ax.imshow(mat, aspect="auto", cmap="YlOrRd", origin="lower")
     ax.set_title("Chromosome distribution")
     ax.set_xticks(range(len(chroms)))
     ax.set_xticklabels(chroms, rotation=45, ha="right", fontsize=7)
     ax.set_yticks(range(len(combos)))
     ax.set_yticklabels(combos, fontsize=7)
-
     save(fig, plots_dir, "heatmap_chrom_distribution")
 
     # barplot
     fig, ax = plt.subplots(figsize=(10, 4))
     x = np.arange(len(chroms))
     width = 0.8 / max(len(combos), 1)
-
     for j, combo in enumerate(combos):
         ax.bar(x + j * width, mat[j], width=width, label=combo)
-
     ax.set_title("Chromosome counts (bar)")
     ax.set_xticks(x)
     ax.set_xticklabels(chroms, rotation=45, ha="right")
-
     save(fig, plots_dir, "bar_chrom_distribution")
 
 
 def plot_gc_distribution(results_dir, combos, plots_dir):
-    labels, means, stds = [], [], []
+    labels  = []
+    means   = []
+    medians = []
+    stds    = []
+    mins_   = []
+    maxs_   = []
 
     for combo in combos:
         gc = read_gc_metrics_csv(os.path.join(results_dir, combo, "gc_metrics.csv"))
-        if not gc:
+        if not gc or gc.get("gc_mean_pct") == "n/a":
             continue
         try:
             labels.append(combo)
             means.append(float(gc["gc_mean_pct"]))
+            medians.append(float(gc["gc_median_pct"]))
             stds.append(float(gc["gc_std_pct"]))
-        except:
+            mins_.append(float(gc["gc_min_pct"]))
+            maxs_.append(float(gc["gc_max_pct"]))
+        except (KeyError, ValueError):
             continue
 
     if not labels:
-        print("[WARN] GC empty")
+        print("  [WARN] GC plot: no gc_metrics.csv data found, skipping.")
         return
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    x = np.arange(len(labels))
+    n = len(labels)
+    fig_w = max(8, n * 0.45 + 2)
+    fig, ax = plt.subplots(figsize=(fig_w, 5))
+    x = np.arange(n)
 
-    ax.bar(x, means)
-    ax.scatter(x, means)
+    ax.bar(
+        x,
+        [s * 2 for s in stds],
+        bottom=[m - s for m, s in zip(means, stds)],
+        width=0.55,
+        color="#4393c3",
+        alpha=0.6,
+        label="mean ± 1 SD",
+    )
+    ax.scatter(x, means, color="#2166ac", zorder=5, s=40, label="mean")
+    ax.scatter(x, medians, color="#d6604d", zorder=5, s=40, marker="D", label="median")
+
+    for i in range(n):
+        ax.plot([x[i], x[i]], [mins_[i], maxs_[i]], color="grey", linewidth=1.0, zorder=3)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right")
-    ax.set_title("GC content")
-
+    ax.set_xticklabels(labels, rotation=55, ha="right", fontsize=max(6, min(9, 120 // n)))
+    ax.set_ylabel("GC content (%)")
+    ax.set_title("GC content of filtered fragments — mean ± SD (whiskers = min/max)")
+    ax.legend(loc="upper right", fontsize=8)
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
     save(fig, plots_dir, "gc_distribution")
 
 
 def plot_annotation_coverage(results_dir, combos, plots_dir):
-    cats = []
+    """
+    Two side-by-side horizontal stacked bar plots:
+      left  – gff:* categories
+      right – te:*  categories
+
+    Each bar fills exactly to 100% – remaining space shown as 'unannotated'.
+    gff:region and total_filtered_bases are excluded (they represent 100% genome).
+
+    If no annotation_summary.csv files are found, the plot is skipped entirely.
+    If only one prefix (gff or te) has data, a single plot is produced.
+    """
+    gff_cats_set, te_cats_set = set(), set()
     data = {}
 
     for c in combos:
         ann = read_annotation_summary_csv(
             os.path.join(results_dir, c, "annotation_summary.csv")
         )
-        if ann:
-            data[c] = ann
-            cats += list(ann.keys())
+        if not ann:
+            continue
+        data[c] = ann
+        for cat in ann:
+            if cat.startswith("gff:"):
+                gff_cats_set.add(cat)
+            elif cat.startswith("te:"):
+                te_cats_set.add(cat)
 
-    cats = sorted(set(cats))
     if not data:
-        print("[WARN] annotation empty")
+        print("[SKIP] annotation_coverage – no annotation_summary.csv files found")
         return
 
-    fig, ax = plt.subplots(figsize=(6, max(3, len(data) * 0.4)))
+    gff_cats = sorted(gff_cats_set)
+    te_cats  = sorted(te_cats_set)
+    combos_found = list(data.keys())
+    n = len(combos_found)
 
-    for i, combo in enumerate(data):
-        left = 0
-        for cat in cats:
-            val = data[combo].get(cat, 0)
-            ax.barh(i, val, left=left)
-            left += val
+    has_gff = bool(gff_cats)
+    has_te  = bool(te_cats)
+    n_panels = has_gff + has_te
 
-    ax.set_yticks(range(len(data)))
-    ax.set_yticklabels(list(data.keys()))
-    ax.set_title("Annotation coverage")
+    gff_colors = list(plt.cm.tab20.colors)
+    te_colors  = list(plt.cm.Set2.colors)
 
+    fig, axes = plt.subplots(
+        1, n_panels,
+        figsize=(max(6, n * 0.6) * n_panels, max(4, n * 0.5)),
+        sharey=True,
+        squeeze=False,
+    )
+    axes = axes[0]
+
+    def draw_stacked(ax, cats, colors, title):
+        # draw each category as a stacked segment
+        for j, cat in enumerate(cats):
+            lefts = [
+                sum(data[c].get(cats[k], 0) for k in range(j))
+                for c in combos_found
+            ]
+            vals = [data[c].get(cat, 0) for c in combos_found]
+            ax.barh(
+                range(n), vals, left=lefts,
+                color=colors[j % len(colors)],
+                label=cat.split(":", 1)[1],
+            )
+
+        # fill remainder to exactly 100% as "unannotated"
+        for i, c in enumerate(combos_found):
+            total = sum(data[c].get(cat, 0) for cat in cats)
+            remainder = max(0.0, 100.0 - total)
+            if remainder > 0:
+                ax.barh(i, remainder, left=total, color="#cccccc",
+                        label="_nolegend_")
+
+        # single grey entry in legend
+        ax.barh([], [], color="#cccccc", label="unannotated")
+
+        ax.set_yticks(range(n))
+        ax.set_yticklabels(combos_found, fontsize=8)
+        ax.set_xlabel("% of library")
+        ax.set_xlim(0, 100)
+        ax.set_title(title, fontsize=11)
+        ax.legend(loc="lower right", fontsize=7, framealpha=0.7, ncol=1)
+        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%.1f"))
+
+    panel_idx = 0
+    if has_gff:
+        draw_stacked(axes[panel_idx], gff_cats, gff_colors, "GFF annotation coverage")
+        panel_idx += 1
+    if has_te:
+        draw_stacked(axes[panel_idx], te_cats, te_colors, "TE annotation coverage")
+
+    fig.suptitle("Annotation coverage", fontsize=13, y=1.01)
+    fig.tight_layout()
     save(fig, plots_dir, "annotation_coverage")
 
 
@@ -272,7 +342,6 @@ def plot_size_distributions(results_dir, combos, plots_dir, low, high):
     x = np.arange(len(std))
 
     fig, ax = plt.subplots(figsize=(10, 4))
-
     for c in combos:
         dist = read_distribution_csv(
             os.path.join(results_dir, c, "distribution.csv")
@@ -282,18 +351,19 @@ def plot_size_distributions(results_dir, combos, plots_dir, low, high):
 
     ax.axvspan(low // 100, high // 100, alpha=0.2)
     ax.set_title("Size distribution")
-
     save(fig, plots_dir, "size_distributions")
 
 
 def parse_args():
     p = argparse.ArgumentParser()
-
-    p.add_argument("--workdir", required=True)
-    p.add_argument("--size", required=True)
-    p.add_argument("--chroms", type=int, default=10)
-    p.add_argument("--dpi", type=int, default=300)
-
+    p.add_argument("--workdir", required=True,
+                   help="Working directory containing results/ subfolder")
+    p.add_argument("--size", required=True,
+                   help="Size window to highlight, e.g. 150-600")
+    p.add_argument("--chroms", type=int, default=10,
+                   help="Number of top chromosomes to plot (default: 10)")
+    p.add_argument("--dpi", type=int, default=300,
+                   help="Output DPI (default: 300)")
     return p.parse_args()
 
 
@@ -306,11 +376,10 @@ def main():
     low, high = parse_size_range(args.size)
 
     results_dir = os.path.join(args.workdir, "results")
-    plots_dir = os.path.join(results_dir, "plots")
+    plots_dir   = os.path.join(results_dir, "plots")
 
     combos = discover_combos(results_dir)
-
-    print(f"combos: {len(combos)}")
+    print(f"combos found: {len(combos)}")
 
     plot_heatmap(results_dir, combos, plots_dir)
     plot_chrom_distribution(results_dir, combos, plots_dir, args.chroms)

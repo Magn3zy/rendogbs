@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# --workdir 
+
 import csv
 import argparse
 from pathlib import Path
@@ -55,7 +55,7 @@ def main():
         row.update(load_stats(combo_dir / "statistics_cutting.csv"))
         row.update(load_gc(combo_dir / "gc_metrics.csv"))
         row.update(load_distribution(combo_dir / "distribution.csv"))
-        row.update(load_annotation(combo_dir / "annotation.csv"))
+        row.update(load_annotation(combo_dir / "annotation_summary.csv"))
         rows.append(row)
         for k in row:
             if k not in all_cols:

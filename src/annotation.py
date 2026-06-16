@@ -99,7 +99,7 @@ def convert_repeatmasker_out_to_bed(te_path: Path, out_path: Path) -> None:
                 end = int(parts[6])
                 te_class = parts[10].split("/")[0]
                 te_family = parts[10].split("/")[1] if "/" in parts[10] else parts[10]
-                label = f"te_{te_class}_{te_family}"
+                label = f"te:{te_class}_{te_family}"
                 out.write(f"{chrom}\t{start}\t{end}\t{label}\n")
             except (ValueError, IndexError):
                 continue
@@ -108,7 +108,7 @@ def convert_repeatmasker_out_to_bed(te_path: Path, out_path: Path) -> None:
 def parse_gff_label_from_intersect_line(parts: list[str]) -> str:
     # A has 4 cols, GFF has 9 cols, overlap is last column.
     # GFF feature type is column 3 (0-based index 2) -> output index 4 + 2 = 6.
-    return f"gff_{parts[6]}"
+    return f"gff:{parts[6]}"
 
 
 def parse_bed_label_from_intersect_line(parts: list[str]) -> str:
@@ -248,13 +248,13 @@ def main() -> None:
         converted_bed = results_dir / "repeatmasker_converted.bed"
         print(f"[INFO] Converting {te_path} -> {converted_bed}")
         convert_repeatmasker_out_to_bed(te_path, converted_bed)
-        sources.append(AnnotationSource(kind="te", path=str(converted_bed), label_prefix="te_"))
+        sources.append(AnnotationSource(kind="te", path=str(converted_bed), label_prefix="te:"))
 
     if args.annotation:
         ann_path = Path(args.annotation)
         if not ann_path.exists():
             raise SystemExit(f"[ERROR] Annotation file not found: {ann_path}")
-        sources.append(AnnotationSource(kind="gff", path=str(ann_path), label_prefix="gff_"))
+        sources.append(AnnotationSource(kind="gff", path=str(ann_path), label_prefix="gff:"))
 
     print(f"[INFO] Processing {len(combo_names)} combination(s) | parallel={args.parallel}")
 
