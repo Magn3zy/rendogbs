@@ -1,17 +1,20 @@
 #### Wrapper - arguments ####
-1) combinations_processing.py 
+1) combination_processing.py
     --workdir
     --combinations fast/custom
-    (--combinations-dir (custom) /path/to/combinations_custom.csv)
+    (--combinations-file (custom) /path/to/combinations_custom.csv)
 
-2) rendogbs_finder 
-    --workdir
+2) rendogbs_finder
+    --out-dir /results/cuts
     --ref
     --parallel
+    --enzymes-run /results/enzymes_run.csv
 
 3) cut_merge
-    --workdir
+    --out-dir /results
     --parallel
+    --combinations /results/combinations.csv
+    --cuts-dir /results/cuts
 
 4) fragment_generation.py
     --workdir
@@ -19,20 +22,22 @@
     --size e.g. 150-350
 
 5) fragment_generation
-    --workdir
+    --out-dir /results
     --parallel
+    --combinations /results/combinations.csv
+    --size e.g. 150-350
 
 6) postprocess_metrics.py
     --workdir
-    --ref   
+    --ref
     --parallel
     --size e.g. 150-350
 
-7) annotation.py #pokud ani jedno nezapneme script
+7) annotation.py  # spouští se pouze pokud je --te nebo --annotation
     --workdir
     --parallel
     (--te)
-    (--annotation) 
+    (--annotation)
 
 8) summary.py
     --workdir
@@ -41,7 +46,7 @@
     --workdir
     --size e.g. 150-350
     --chroms
-    --dpi
+    (--dpi)
 
 
 #### Inputs and outputs (dependencies of each script) ####
