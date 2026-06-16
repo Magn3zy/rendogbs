@@ -30,7 +30,6 @@ FAST_COMBOS = [
     ('SbfI',     'MseI'),
     ('ApeKI',    'MseI'),
     ('BamHI',    'MseI'),
-    ('BamHI',    'MboI'),
     ('HindIII',  'MseI'),
     ('HindIII',  'NlaIII'),
     ('NheI',     'MboI'),
@@ -40,7 +39,6 @@ FAST_COMBOS = [
     ('KpnI',     'MboI'),
     ('NcoI',     'MseI'),
     ('NcoI',     'MboI'),
-    ('BglII',    'MboI'),
     ('BglII',    'MseI'),
     ('ClaI',     'MboI'),
 ]
