@@ -67,9 +67,118 @@ while [[ $# -gt 0 ]]; do
       SKIP_PLOTS=1
       shift
       ;;
+        --enzymes)
+      cat <<'EOF'
+AanI        AvaII       BseYI       BstYI       Eco72I      Hpy99I      NcoI        PvuI        SphI
+AatII       AvrII       BsiEI       BstZ17I     EcoRI       HpyCH4III   NdeI        PvuII       SrfI
+Acc65I      BaeGI       BsiHKAI     Bsu36I      EcoRV       HpyCH4IV    NgoMIV      RsrII       SspI
+AccI        BamHI       BsiWI       BtgI        EheI        HpyCH4V     NheI        RsaI        StyD4I
+AciI        BanI        BsoBI       ClaI        FatI        KasI        NlaIII      SacI        StyI
+AclI        BanII       Bsp1286I    CpoI        Fnu4HI      KpnI        NotI        SacII       SwaI
+AfeI        BbvCI       BspDI       CsiI        FseI        MboI        NruI        SalI        TaiI
+AflII       BclI        BspEI       CviKI-1     FspAI       MluCI       NsiI        Sau3AI      TaqI
+AflIII      BfaI        BspHI       CviQI       FspI        MluI        NspI        Sau96I      TasI
+AgeI        BfoI        BspOI       DdeI        HaeII       MreI        PacI        SbfI        TatI
+AluI        BglII       BsrBI       DpnI        HaeIII      MscI        PaeR7I      ScaI        TauI
+ApaI        BlpI        BsrFI       DpnII       HhaI        MseI        PciI        ScrFI       TfiI
+ApaLI       BmgBI       BsrGI       DraI        HinP1I      MspA1I      PluTI       SexAI       TseI
+ApeKI       Bpu10I      BssHII      EaeI        HincII      MspI        PpuMI       SfcI        Tsp45I
+ApoI        BsaAI       BssSI       EagI        HindIII     MssI        PsiI        SgrAI       TspMI
+AscI        BsaHI       BstBI       Ecl136II    HinfI       MunI        PspGI       SgrDI       XbaI
+AseI        BsaJI       BstEII      Eco105I     HpaI        NaeI        PspOMI      SmaI        XhoI
+AsiSI       BsaWI       BstNI       Eco147I     HpaII       NarI        PspXI       SmlI        XmaI
+AvaI        BseSI       BstUI       Eco53kI     Hpy188I     NciI        PstI        SpeI        ZraI
+EOF
+      exit 0
+      ;;
+
     -h|--help)
       cat <<'EOF'
-Placeholder
+rendogbs  -  In-silico ddRAD/GBS library pipeline
+
+Runs rendogbs_pipeline.py (digest + analysis), then rendogbs_plots.py
+(TSV summary + figures) sequentially.  Plots start only after the pipeline
+exits successfully.  All output is written to <workdir>/results/.
+
+CONTAINER TYPE (default: --docker)
+  --docker                  Run the docker container (default)
+  --singularity             Run the singularity container rendogbs-v1.sif in this
+                            directory
+  --image          <image>  Docker image name or singularity image file name.
+
+PBS SUPPORT
+  --qsub                    Do not run directly but submit as PBS job using qsub
+  --limits|-l     <limits>  Specify arbitrary PBS job limits (typically mem=XXgb)
+  --interactive|-I          Run as interactive PBS job
+  --name|-N         <name>  Specify PBS job name (defaults to rendogbs)
+
+REQUIRED
+  --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
+  --workdir        <dir>    Working directory (created if absent)
+  --parallel       <int>    Contigs processed in parallel per batch
+  --size           <range>  Fragment size window, e.g. 200-400 (both inclusive).
+                            Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
+                            always reported; filtered.csv retains only fragments
+                            within [LOW, HIGH].
+
+COMBINATIONS  (optional, default: fast)
+  --combinations   fast     25 built-in common ddRAD/GBS pairs (default)
+                   all      all ordered enzyme pairs from the dictionary
+                   custom   read from --combinations-file
+  --combinations-file <f>   CSV for custom mode (header line + enzyme_a,enzyme_b rows)
+
+ANNOTATION  (optional)
+  --annotation     <file>   GFF3/GFF/GTF gene annotation (plain or .gz)
+  --te             <file>   RepeatMasker .out TE annotation (plain or .gz)
+
+PLOT OPTIONS  (optional)
+  --chroms         <int>    Longest N contigs treated as chromosomes in
+                            per-chromosome plots (default: 10)
+  --dpi            <int>    Figure resolution in DPI (default: 300)
+  --skip-plots              Run pipeline only, skip plot generation
+
+OTHER
+  -h, --help                Show this help and exit
+  --enzymes                Show available enzymes and exit
+
+OUTPUT STRUCTURE
+  workdir/
+    results/
+      contig_lengths.txt          contigs sorted descending by length
+      run_summary.tsv             Excel-ready: one row per combination,
+                                  all bin counts + GC metrics + annotation %
+      EcoRI_MseI/
+        cuts.csv                  all cut sites (accession, position, enzyme)
+        fragments.csv             all adjacent pairs of different enzymes
+        filtered.csv              fragments within --size window
+        distribution.csv          standard 100 bp bins + custom window row
+        gc_metrics.csv            GC statistics for filtered fragments
+        annotation_summary.csv    TE / gene coverage (only with --te / --annotation)
+      AciI_HindIII/
+        ...
+      plots/
+        heatmap_fragment_lengths.png    fragment count heatmap (10 bp bins, log scale)
+        heatmap_chrom_distribution.png  filtered fragments per chromosome (heatmap)
+        bar_chrom_distribution.png      filtered fragments per chromosome (bar chart)
+        gc_distribution.png             GC% per combination: mean +/- SD
+        annotation_coverage.png         annotation category coverage stacked bar
+        size_distributions.png          100 bp bin line plot, user window highlighted
+
+EXAMPLES
+  # Basic run, fast preset, 200-400 bp window
+  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 11 --size 200-400
+
+  # All combinations, with annotation, 24 chromosomes in plots
+  rendogbs.sh --ref genome.fa.gz --workdir ./run1 --parallel 8 --size 150-350 \
+              --combinations all \
+              --annotation genes.gff3.gz --te repeats.out \
+              --chroms 24
+
+  # Custom enzyme pairs, pipeline only
+  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 4 --size 200-500 \
+              --combinations custom --combinations-file my_pairs.txt \
+              --skip-plots
+
 EOF
       exit 0
       ;;
@@ -79,6 +188,7 @@ EOF
       ;;
   esac
 done
+
 
 # check
 
