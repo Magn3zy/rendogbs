@@ -1,24 +1,13 @@
 # Dockerfile
 # Copyright (c) 2026 Dominik Pantůček ORCID 0009-0000-3509-0905
 #
-# Docker image for rendogbs. Two-stage build with compiled binaries
+# Docker image for rendogbs. Multi-stage build with compiled binaries
 # being created during build stage and included in the final image
 # without the development environment.
 #
 # Requirements:
 # - rendogbs-bedtools
-
-################################################################
-# Build Stage - rust
-
-FROM alpine:latest AS build
-RUN apk add --no-cache rust cargo
-
-COPY ./src/rust /home/build/
-
-RUN cd /home/build/rust/cut_merge && cargo build --release
-RUN cd /home/build/rust/fragment_generation && cargo build --release
-RUN cd /home/build/rust/rendogbs_finder && cargo build --release
+# - rendogbs-rust
 
 ################################################################
 # Runtime Stage
@@ -38,7 +27,9 @@ COPY src/rendogbs_plots.py /home/rendogbs/
 COPY src/endonucleases.py /home/rendogbs/
 COPY src/enzymes.csv /home/rendogbs/
 
-COPY --from=build /home/build/target/release/rendogbs_finder /home/rendogbs/
+COPY --from=rendogbs-rust:latest /home/build/rendogbs_finder/target/release/rendogbs_finder /home/rendogbs/
+COPY --from=rendogbs-rust:latest /home/build/cut_merge/target/release/cut_merge /home/rendogbs/
+COPY --from=rendogbs-rust:latest /home/build/fragment_generation/target/release/fragment_generation /home/rendogbs/
 COPY --from=rendogbs-bedtools:latest /home/build/bedtools2/bin/bedtools /usr/bin/bedtools
 
 ENTRYPOINT ["/home/rendogbs/rendogbs_user.sh"]
