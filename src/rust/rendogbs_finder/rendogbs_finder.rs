@@ -1,3 +1,10 @@
+// rendogbs_finder.rs
+// Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+//
+// Aho-Corasick overlaping motifs finder, case insensitive
+// Uses atleast 1 (n) threads for search and 1 thread for output
+// Output: enzyme specific cuts.csv
+
 use std::{
     collections::HashMap,
     fs,
@@ -112,12 +119,12 @@ fn main() {
     let acc_names_owned: Vec<String> = contigs.iter().map(|(acc, _)| acc.clone()).collect();
 
     let writer_handle = thread::spawn(move || {
-        // klíč = název enzymu — více IUPAC variant stejného enzymu → jeden soubor
+        // key = enzyme name — expanded IUPAC characters - one file
         let mut files:    HashMap<String, fs::File> = HashMap::new();
         let mut buffers:  HashMap<String, Vec<u8>>  = HashMap::new(); // cant be torn appart during flush
         let mut expected: HashMap<String, u64>       = HashMap::new();
 
-        const FLUSH_BYTES: usize = 64 * 1024 * 1024; // 64kB passed test 64 MB for production
+        const FLUSH_BYTES: usize = 64 * 1024 * 1024;
 
         for hit in rx {
             let name = enzyme_names[hit.enzyme_idx as usize].clone();
