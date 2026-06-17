@@ -120,6 +120,7 @@ WORKDIR=
 
 # Passed arguments to both subtasks
 S1ARGS=
+S2ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -136,6 +137,7 @@ while [ -n "$1" ] ; do
 	--workdir)
 	    WORKDIR="$2"
 	    S1ARGS="$S1ARGS $1 $2"
+	    S2ARGS="$S2ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -156,9 +158,13 @@ while [ -n "$1" ] ; do
 	    shift
 	    ;;
 	--parallel)
+	    S2ARGS="$S2ARGS $1 $2"
+	    shift
 	    shift
 	    ;;
 	--ref)
+	    S2ARGS="$S2ARGS $1 $2"
+	    shift
 	    shift
 	    ;;
 	--help|-h)
@@ -177,12 +183,26 @@ info "Step 1: combination_processing.py"
 tss1=$(date +%s)
 python3 combination_processing.py $S1ARGS
 
+######## 2) Finder (Rust)
+tss2=$(date +%s)
+info Took $((tss2 - tss1)) seconds.
+
+info "Step 2: rendogbs_finder"
+./rendogbs_finder \
+  --out-dir "$WORKDIR/results/cuts/" \
+  --enzymes-run "$WORKDIR/results/enzymes_run.csv" \
+   $S2ARGS
+
+######## 3
+tss3=$((date +%s))
+info Took $((tss3 - tss2)) seconds.
+
 find "$WORKDIR"
 
 ################################################################
 
 tsse=$(date +%s)
 
-info Elapsed time $((tsse - tss1))
+info Elapsed time $((tsse - tss1)) seconds.
 
 echo "  Results  : ${WORKDIR}/results/"
