@@ -195,6 +195,9 @@ while [ -n "$1" ] ; do
 	    ;;
 	--workdir)
 	    OWORKDIR=`readlink -f "$wd/$2"`
+	    if [ -z "$OWORKDIR" ] ; then
+		OWORKDIR=`readlink -f "$2"`
+	    fi
 	    INNER_ARGS="$INNER_ARGS $1 ./workdir"
 	    shift
 	    if [ -n "$1" ] ; then
@@ -208,6 +211,9 @@ while [ -n "$1" ] ; do
 	    shift
 	    if [ -n "$1" ] ; then
 		OREF=`readlink -f "$wd/$1"`
+		if [ -z "$OREF" ] ; then
+		    OREF=`readlink -f "$1"`
+		fi
 		VMAPPINGS="$VMAPPINGS $VMOPT $OREF:$IHOME/${1##*/}"
 		ARGSMSK=$((ARGSMSK | 2))
 		shift
@@ -218,6 +224,9 @@ while [ -n "$1" ] ; do
 	    shift
 	    if [ -n "$1" ] ; then
 		OCFILE=`readlink -f "$wd/$1"`
+		if [ -z "$OCFILE" ] ; then
+		    OCFILE=`readlink -f "$1"`
+		fi
 		VMAPPINGS="$VMAPPINGS $VMOPT $OCFILE:$IHOME/${1##*/}"
 		ARGSMSK=$((ARGSMSK | 16))
 		shift
@@ -228,6 +237,9 @@ while [ -n "$1" ] ; do
 	    shift
 	    if [ -n "$1" ] ; then
 		OFILE=`readlink -f "$wd/$1"`
+		if [ -z "$OFILE" ] ; then
+		    OFILE=`readlink -f "$1"`
+		fi
 		VMAPPINGS="$VMAPPINGS $VMOPT $OFILE:$IHOME/${1##*/}"
 		shift
 	    fi
