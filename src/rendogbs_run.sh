@@ -119,7 +119,7 @@ RUN_PLOTS=1
 WORKDIR=
 DO_ANNOTATION=0
 
-# Passed arguments to both subtasks
+# Arguments passed to different subtasks
 S1ARGS=
 S2ARGS=
 S3ARGS=
@@ -128,6 +128,7 @@ S5ARGS=
 S6ARGS=
 S7ARGS=
 S8ARGS=
+S9ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -137,7 +138,7 @@ while [ -n "$1" ] ; do
 	    shift
 	    ;;
 	--chroms|--dpi)
-	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
+	    S9ARGS="$S9ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -148,7 +149,7 @@ while [ -n "$1" ] ; do
 	    S6ARGS="$S6ARGS $1 $2"
 	    S7ARGS="$S7ARGS $1 $2"
 	    S8ARGS="$S8ARGS $1 $2"
-	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
+	    S9ARGS="$S9ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -166,7 +167,7 @@ while [ -n "$1" ] ; do
 	    S4ARGS="$S4ARGS $1 $2"
 	    S5ARGS="$S5ARGS $1 $2"
 	    S6ARGS="$S6ARGS $1 $2"
-	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
+	    S9ARGS="$S9ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -272,11 +273,16 @@ info "Step 8: summary.py"
 python3 summary.py $S8ARGS
 
 
-########
+######## 9) Plots
 tss9=$(date +%s)
 info Took $((tss9 - tss8)) seconds.
 
-find "$WORKDIR"
+if [ $RUN_PLOTS -eq 1 ] ; then
+    info "Step 9: plots.py"
+    python3 plots.py $S9ARGS
+else
+    info "Step 9: plots.py skipped (--skip-plots)"
+fi
 
 ################################################################
 

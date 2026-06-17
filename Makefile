@@ -40,9 +40,10 @@ docker-rust: containers/.docker-rust-built
 # Dependencies
 
 # Interpreted scripts used in the pipeline(s)
-SCRIPTS=src/endonucleases.py src/rendogbs_pipeline.py		\
-	src/rendogbs_plots.py src/combination_processing.py	\
-	src/enzymes.csv
+SCRIPTS= src/combination_processing.py src/fragment_generation.py	\
+		src/postprocess_metrics.py src/annotation.py		\
+		src/summary.py src/plots.py src/enzymes.csv		\
+		src/allowed_pairs.csv
 
 # Wrappers needed for running in docker - the outer wrapper
 # "rendogbs.sh" is NOT a dependency of the image!
