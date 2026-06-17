@@ -122,6 +122,7 @@ WORKDIR=
 S1ARGS=
 S2ARGS=
 S3ARGS=
+S4ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -138,6 +139,7 @@ while [ -n "$1" ] ; do
 	--workdir)
 	    WORKDIR="$2"
 	    S1ARGS="$S1ARGS $1 $2"
+	    S4ARGS="$S4ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -153,6 +155,7 @@ while [ -n "$1" ] ; do
 	    shift
 	    ;;
 	--size)
+	    S4ARGS="$S4ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -160,6 +163,7 @@ while [ -n "$1" ] ; do
 	--parallel)
 	    S2ARGS="$S2ARGS $1 $2"
 	    S3ARGS="$S3ARGS $1 $2"
+	    S4ARGS="$S4ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -198,15 +202,24 @@ info "Step 2: rendogbs_finder"
 tss3=$(date +%s)
 info Took $((tss3 - tss2)) seconds.
 
+info "Step 3: cut_merge"
 ./cut_merge \
   --out-dir "$WORKDIR/results/" \
   --combinations "$WORKDIR/results/combinations.csv" \
   --cuts-dir "$WORKDIR/results/cuts" \
   $S3ARGS
 
-########
+######## 4) Fragment Generation
 tss4=$(date +%s)
 info Took $((tss4 - tss3)) seconds.
+
+info "Step 4: fragment_generation.py"
+python3 fragment_generation.py \
+	$S4ARGS
+
+######## 5
+tss5=$(date +%s)
+info Took $((tss5 - tss4)) seconds.
 
 find "$WORKDIR"
 

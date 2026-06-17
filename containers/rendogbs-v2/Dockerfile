@@ -14,7 +14,7 @@
 
 FROM alpine:latest
 
-RUN apk add --no-cache python3 py3-numpy py3-matplotlib
+RUN apk add --no-cache python3 py3-numpy py3-matplotlib py3-pandas
 
 COPY src/rendogbs_user.sh /home/rendogbs/
 RUN chmod +x /home/rendogbs/rendogbs_user.sh
@@ -22,6 +22,8 @@ RUN chmod +x /home/rendogbs/rendogbs_user.sh
 COPY src/rendogbs_run.sh /home/rendogbs/
 
 COPY src/combination_processing.py /home/rendogbs/
+COPY src/fragment_generation.py /home/rendogbs/
+
 COPY src/rendogbs_pipeline.py /home/rendogbs/
 COPY src/rendogbs_plots.py /home/rendogbs/
 COPY src/endonucleases.py /home/rendogbs/
