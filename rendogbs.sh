@@ -2,7 +2,7 @@
 
 # Inner environment
 IHOME=/home/rendogbs
-IMGNAME=rendogbs-v1
+IMGNAME=rendogbs-v2
 
 # Outer environment: current working directory and script directory
 wd=`pwd`

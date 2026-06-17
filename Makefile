@@ -6,7 +6,7 @@
 #
 
 # Configuration
-IMGNAME=rendogbs-v1
+IMGNAME=rendogbs-v2
 
 # By default, build the docker image
 .PHONY: default
@@ -28,7 +28,12 @@ WRAPPERS=src/rendogbs_run.sh src/rendogbs_user.sh
 # Compiled programs (need to be compiled during build stage and then
 # included in the final image only in binary form - see Dockerfile for
 # details)
-PROGRAMS=src/main.rs src/Cargo.toml
+PROGRAMS=src/rust/cut_merge/cut_merge.rs				\
+		src/rust/cut_merge/Cargo.toml				\
+		src/rust/fragment_generation/fragment_generation.rs	\
+		src/rust/fragment_generation/Cargo.toml			\
+		src/rust/rendogbs_finder/rendogbs_finder.rs		\
+		src/rust/rendogbs_finder/Cargo.toml
 
 # For manually starting the docker image build
 .PHONY: docker

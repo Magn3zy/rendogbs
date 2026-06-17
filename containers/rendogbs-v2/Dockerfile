@@ -14,10 +14,11 @@
 FROM alpine:latest AS build
 RUN apk add --no-cache rust cargo
 
-COPY ./src/main.rs /home/build/
-COPY ./src/Cargo.toml /home/build/
+COPY ./src/rust /home/build/
 
-RUN cd /home/build && cargo build --release
+RUN cd /home/build/rust/cut_merge && cargo build --release
+RUN cd /home/build/rust/fragment_generation && cargo build --release
+RUN cd /home/build/rust/rendogbs_finder && cargo build --release
 
 ################################################################
 # Runtime Stage
