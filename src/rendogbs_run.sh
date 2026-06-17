@@ -123,6 +123,7 @@ S1ARGS=
 S2ARGS=
 S3ARGS=
 S4ARGS=
+S5ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -156,6 +157,7 @@ while [ -n "$1" ] ; do
 	    ;;
 	--size)
 	    S4ARGS="$S4ARGS $1 $2"
+	    S5ARGS="$S5ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -164,6 +166,7 @@ while [ -n "$1" ] ; do
 	    S2ARGS="$S2ARGS $1 $2"
 	    S3ARGS="$S3ARGS $1 $2"
 	    S4ARGS="$S4ARGS $1 $2"
+	    S5ARGS="$S5ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -217,9 +220,19 @@ info "Step 4: fragment_generation.py"
 python3 fragment_generation.py \
 	$S4ARGS
 
-######## 5
+######## 5) Fragment Generation (Rust)
 tss5=$(date +%s)
 info Took $((tss5 - tss4)) seconds.
+
+info "Step 5: fragment_generation"
+./fragment_generation \
+  --out-dir "$WORKDIR/results/" \
+  --combinations "$WORKDIR/results/combinations.csv" \
+  $S5ARGS
+
+######## 6
+tss6=$(date +%s)
+info Took $((tss6 - tss7)) seconds.
 
 find "$WORKDIR"
 
