@@ -121,6 +121,7 @@ WORKDIR=
 # Passed arguments to both subtasks
 S1ARGS=
 S2ARGS=
+S3ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -158,6 +159,7 @@ while [ -n "$1" ] ; do
 	    ;;
 	--parallel)
 	    S2ARGS="$S2ARGS $1 $2"
+	    S3ARGS="$S3ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -192,9 +194,19 @@ info "Step 2: rendogbs_finder"
   --enzymes-run "$WORKDIR/results/enzymes_run.csv" \
    $S2ARGS
 
-######## 3
+######## 3) Cut Merge (Rust)
 tss3=$(date +%s)
 info Took $((tss3 - tss2)) seconds.
+
+./cut_merge \
+  --out-dir "$WORKDIR/results/" \
+  --combinations "$WORKDIR/results/combinations.csv" \
+  --cuts-dir "$WORKDIR/results/cuts" \
+  $S3ARGS
+
+########
+tss4=$(date +%s)
+info Took $((tss4 - tss3)) seconds.
 
 find "$WORKDIR"
 
