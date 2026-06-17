@@ -67,7 +67,35 @@ while [[ $# -gt 0 ]]; do
       SKIP_PLOTS=1
       shift
       ;;
-        --enzymes)
+    --fast-combinations)
+      cat <<'EOF'
+EcoRI      + MseI
+EcoRI      + MboI
+EcoRI      + NlaIII
+PstI       + MspI
+PstI       + MseI
+PstI       + TaqI
+PstI       + MboI
+PstI       + HpaII
+SbfI       + MspI
+SbfI       + MseI
+ApeKI      + MseI
+BamHI      + MseI
+HindIII    + MseI
+HindIII    + NlaIII
+NheI       + MboI
+NheI       + MseI
+XbaI       + MboI
+SpeI       + MboI
+KpnI       + MboI
+NcoI       + MseI
+NcoI       + MboI
+BglII      + MseI
+ClaI       + MboI
+EOF
+      exit 0
+      ;;
+    --enzymes)
       cat <<'EOF'
 AanI        AvaII       BseYI       BstYI       Eco72I      Hpy99I      NcoI        PvuI        SphI
 AatII       AvrII       BsiEI       BstZ17I     EcoRI       HpyCH4III   NdeI        PvuII       SrfI
@@ -96,7 +124,7 @@ EOF
       cat <<'EOF'
 rendogbs  -  In-silico ddRAD/GBS library pipeline
 
-Runs rendogbs_pipeline.py (digest + analysis), then rendogbs_plots.py
+Runs diges and analysis, then generates plots
 (TSV summary + figures) sequentially.  Plots start only after the pipeline
 exits successfully.  All output is written to <workdir>/results/.
 
@@ -115,21 +143,22 @@ PBS SUPPORT
 REQUIRED
   --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
   --workdir        <dir>    Working directory (created if absent)
-  --parallel       <int>    Contigs processed in parallel per batch
+  --parallel       <int>    Combinations processed in parallel per batch, don't more threads than combinations
   --size           <range>  Fragment size window, e.g. 200-400 (both inclusive).
                             Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
                             always reported; filtered.csv retains only fragments
-                            within [LOW, HIGH].
+                            within --size-range.
 
 COMBINATIONS  (optional, default: fast)
-  --combinations   fast     25 built-in common ddRAD/GBS pairs (default)
-                   all      all ordered enzyme pairs from the dictionary
+  --combinations   fast     23 built-in common ddRAD/GBS pairs (default)
                    custom   read from --combinations-file
-  --combinations-file <f>   CSV for custom mode (header line + enzyme_a,enzyme_b rows)
+  --combinations-file <f>   CSV for custom mode (header line: enzyme_a,enzyme_b),
+                            please reffer to --enzymes to choose enzymes from the list 
+                            of 171 available enzymes.
 
 ANNOTATION  (optional)
-  --annotation     <file>   GFF3/GFF/GTF gene annotation (plain or .gz)
-  --te             <file>   RepeatMasker .out TE annotation (plain or .gz)
+  --annotation     <file>   GFF3/GFF/GTF gene annotation
+  --te             <file>   RepeatMasker .out TE annotation
 
 PLOT OPTIONS  (optional)
   --chroms         <int>    Longest N contigs treated as chromosomes in
@@ -139,21 +168,25 @@ PLOT OPTIONS  (optional)
 
 OTHER
   -h, --help                Show this help and exit
-  --enzymes                Show available enzymes and exit
+  --enzymes                 Show available enzymes and exit
+  --fast-combinations       Show fast combinations and exit
 
 OUTPUT STRUCTURE
   workdir/
     results/
       contig_lengths.txt          contigs sorted descending by length
-      run_summary.tsv             Excel-ready: one row per combination,
+      summary.tsv                 Excel-ready: one row per combination,
                                   all bin counts + GC metrics + annotation %
       EcoRI_MseI/
         cuts.csv                  all cut sites (accession, position, enzyme)
         fragments.csv             all adjacent pairs of different enzymes
-        filtered.csv              fragments within --size window
+        filtered.csv              fragments within --size window and with resolved multi-cutter regions
         distribution.csv          standard 100 bp bins + custom window row
         gc_metrics.csv            GC statistics for filtered fragments
         annotation_summary.csv    TE / gene coverage (only with --te / --annotation)
+        uncertain_cuts.csv        fragments with ambiguous cut sites
+        statistics_uncertain.csv  statistics for ambiguous cut sites
+        statistics_cutting.csv    statistics for all cut sites
       AciI_HindIII/
         ...
       plots/
@@ -165,18 +198,19 @@ OUTPUT STRUCTURE
         size_distributions.png          100 bp bin line plot, user window highlighted
 
 EXAMPLES
+  # Don't use more threads than combinations, pipeline won't finish faster
   # Basic run, fast preset, 200-400 bp window
-  rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 11 --size 200-400
+  rendogbs.sh --ref genome.fasta --workdir ./run1 --parallel 11 --size 200-400
 
-  # All combinations, with annotation, 24 chromosomes in plots
-  rendogbs.sh --ref genome.fa.gz --workdir ./run1 --parallel 8 --size 150-350 \
-              --combinations all \
+  # All combinations, with annotation, 11 chromosomes in plots
+  rendogbs.sh --ref genome.fasta --workdir ./run1 --parallel 11 --size 150-350 \
+              --combinations fast \
               --annotation genes.gff3.gz --te repeats.out \
-              --chroms 24
+              --chroms 11
 
   # Custom enzyme pairs, pipeline only
   rendogbs.sh --ref genome.fa --workdir ./run1 --parallel 4 --size 200-500 \
-              --combinations custom --combinations-file my_pairs.txt \
+              --combinations custom --combinations-file my_pairs.csv \
               --skip-plots
 
 EOF
