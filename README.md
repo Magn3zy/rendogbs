@@ -169,6 +169,42 @@ singularity run \
 These two options are equivalent.
 
 
+Argument guide
+--------------
+```
+REQUIRED
+--ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
+--workdir        <dir>    Working directory
+--parallel       <int>    Combinations processed in parallel per batch, don't use more threads than combinations
+--size           <range>  Fragment size window used in library, e.g. 200-400 (both inclusive).
+                          Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
+                          always reported; filtered.csv retains only fragments
+                          within --size-range.
+--chroms         <int>    Longest N contigs treated as chromosomes in
+                          per-chromosome plots (default: 10)
+
+COMBINATIONS
+--combinations            fast      (deafult most used combinations from literature)
+                                    you don't need to specify this argument
+--combinations            custom    (specify combinations yourself)
+--combinations-file       <file>    (specify combinations you csv file) 
+                                    csv formating: header line - enzyme_a,enzyme_b, refer to enzyme list
+
+ANNOTATION (optional)
+--annotation     <file>   GFF3/GFF/GTF gene annotation
+--te             <file>   RepeatMasker .out TE annotation
+
+PLOT OPTIONS (optional)
+--dpi            <int>    Figure resolution in DPI (default: 300)
+--skip-plots              Run pipeline only, skip plot generation
+
+HELP
+-h, --help                Show help (shows commented file structure used)
+--enzymes                 Show available enzymes in this pipeline (171)
+--fast-combinations       Show fast combinations used in this pipeline
+```
+	  
+
 Architecture
 ------------
 
