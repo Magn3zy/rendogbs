@@ -25,6 +25,7 @@ COPY src/combination_processing.py /home/rendogbs/
 COPY src/fragment_generation.py /home/rendogbs/
 COPY src/postprocess_metrics.py /home/rendogbs/
 COPY src/annotation.py /home/rendogbs/
+COPY src/summary.py /home/rendogbs/
 
 COPY src/rendogbs_pipeline.py /home/rendogbs/
 COPY src/rendogbs_plots.py /home/rendogbs/

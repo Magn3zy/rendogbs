@@ -127,6 +127,7 @@ S4ARGS=
 S5ARGS=
 S6ARGS=
 S7ARGS=
+S8ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -146,6 +147,7 @@ while [ -n "$1" ] ; do
 	    S4ARGS="$S4ARGS $1 $2"
 	    S6ARGS="$S6ARGS $1 $2"
 	    S7ARGS="$S7ARGS $1 $2"
+	    S8ARGS="$S8ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -232,8 +234,7 @@ tss4=$(date +%s)
 info Took $((tss4 - tss3)) seconds.
 
 info "Step 4: fragment_generation.py"
-python3 fragment_generation.py \
-	$S4ARGS
+python3 fragment_generation.py $S4ARGS
 
 ######## 5) Fragment Generation (Rust)
 tss5=$(date +%s)
@@ -250,8 +251,7 @@ tss6=$(date +%s)
 info Took $((tss6 - tss5)) seconds.
 
 info "Step 6: postprocess_metrics.py"
-python3 postprocess_metrics.py \
-	$S6ARGS
+python3 postprocess_metrics.py $S6ARGS
 
 ######## 7) Annotation
 tss7=$(date +%s)
@@ -264,9 +264,17 @@ else
     info "Step 7: annotation.py skipped (no --te / --annotation provided)"
 fi
 
-########
+######## 8) Summary
 tss8=$(date +%s)
 info Took $((tss8 - tss7)) seconds.
+
+info "Step 8: summary.py"
+python3 summary.py $S8ARGS
+
+
+########
+tss9=$(date +%s)
+info Took $((tss9 - tss8)) seconds.
 
 find "$WORKDIR"
 
