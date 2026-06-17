@@ -183,7 +183,7 @@ REQUIRED
 --chroms         <int>    Longest N contigs treated as chromosomes in
                           per-chromosome plots (default: 10)
 
-COMBINATIONS
+COMBINATIONS (fast/custom)
 --combinations            fast      (deafult most used combinations from literature)
                                     you don't need to specify this argument
 --combinations            custom    (specify combinations yourself)
