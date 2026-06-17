@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-"""
-combination_processing.py  -  Prvni krok
-Mod renda (fast / custom), kontroluje nazvy enzymu oproti masteru enzymes.csv
-vypisuje do <workdir>/results/:
-  enzymes_run.csv   - sekvence pouze pro tento beh sloupce: enzyme_name, expanded_sequence, cut_offset primo pro rust
-  combinations.csv  - overene kombinace enzymu co existuji sloupce: enzyme_a, enzyme_b (pro rendogbs_pipeline.py)
-Implementace (rendogbs.sh):
-  python combination_processing.py \
-      --workdir      ./run1 \
-      --combinations fast/custom \
-      [--combinations-file my_pairs.csv]
-POZOR all zruseno, pak upravim help, to by bylo ohromne, neprehledne grafy a hlavne zbytecne
-"""
+# combination_processing.py
+# Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+#
+# Preparing motifs for Aho-Corasick and combinations for rest of the pipeline
+# Output: enzymes_run.csv, combinations.csv
 import os
 import sys
 import csv
@@ -53,7 +45,7 @@ def load_enzymes_csv(path) -> dict[str, list[dict]]:
             db.setdefault(row['enzyme_name'], []).append(row)
     return db
 
-# combinations for rendogbs_pipeline
+# combinations for rest of the pipeline
 def load_custom(path) -> list[tuple[str, str]]:
     if not path:
         sys.exit('[ERROR] --combinations custom requires --combinations-file')
@@ -102,7 +94,7 @@ def main():
             b = row['enzyme_b'].strip()
             allowed_set.add(tuple(sorted((a, b))))
 
-    # check - is enzyme in the enzymes.csv and is pair allowed
+    # check - is enzyme in the enzymes.csv and is the pair allowed
     print(f'[2/3] Resolving combinations: {args.combinations}')
     raw_combos = FAST_COMBOS if args.combinations == 'fast' else load_custom(args.combinations_file)
 
@@ -139,7 +131,7 @@ def main():
         w.writerows(rows)
     print(f'  -> enzymes_run.csv  : {len(rows)} rows ({len(needed)} enzymes)')
 
-    # create combinations.csv for fragment_processing.py
+    # create combinations.csv for fragment_processing
     combos_path = os.path.join(results_dir, 'combinations.csv')
     with open(combos_path, 'w', newline='') as fh:
         w = csv.writer(fh)
