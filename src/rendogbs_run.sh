@@ -141,6 +141,7 @@ while [ -n "$1" ] ; do
 	    WORKDIR="$2"
 	    S1ARGS="$S1ARGS $1 $2"
 	    S4ARGS="$S4ARGS $1 $2"
+	    S6ARGS="$S6ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -158,6 +159,7 @@ while [ -n "$1" ] ; do
 	--size)
 	    S4ARGS="$S4ARGS $1 $2"
 	    S5ARGS="$S5ARGS $1 $2"
+	    S6ARGS="$S6ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -167,11 +169,13 @@ while [ -n "$1" ] ; do
 	    S3ARGS="$S3ARGS $1 $2"
 	    S4ARGS="$S4ARGS $1 $2"
 	    S5ARGS="$S5ARGS $1 $2"
+	    S6ARGS="$S6ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
 	--ref)
 	    S2ARGS="$S2ARGS $1 $2"
+	    S6ARGS="$S6ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -230,9 +234,18 @@ info "Step 5: fragment_generation"
   --combinations "$WORKDIR/results/combinations.csv" \
   $S5ARGS
 
-######## 6
+######## 6) Postprocess Metrics
 tss6=$(date +%s)
-info Took $((tss6 - tss7)) seconds.
+info Took $((tss6 - tss5)) seconds.
+
+info "Step 6: postprocess_metrics.py"
+python3 postprocess_metrics.py \
+	$S6ARGS
+
+########
+tss7=$(date +%s)
+info Took $((tss7 - tss6)) seconds.
+
 
 find "$WORKDIR"
 
