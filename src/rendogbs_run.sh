@@ -137,7 +137,6 @@ while [ -n "$1" ] ; do
 	--workdir)
 	    WORKDIR="$2"
 	    S1ARGS="$S1ARGS $1 $2"
-	    S2ARGS="$S2ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -194,7 +193,7 @@ info "Step 2: rendogbs_finder"
    $S2ARGS
 
 ######## 3
-tss3=$((date +%s))
+tss3=$(date +%s)
 info Took $((tss3 - tss2)) seconds.
 
 find "$WORKDIR"
