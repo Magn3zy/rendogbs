@@ -208,6 +208,11 @@ done
 info "Step 1: combination_processing.py"
 tss1=$(date +%s)
 python3 combination_processing.py $S1ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 1 failed: $res
+    exit 1
+fi
 
 ######## 2) Finder (Rust)
 tss2=$(date +%s)
@@ -218,6 +223,11 @@ info "Step 2: rendogbs_finder"
   --out-dir "$WORKDIR/results/cuts/" \
   --enzymes-run "$WORKDIR/results/enzymes_run.csv" \
    $S2ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 2 failed: $res
+    exit 1
+fi
 
 ######## 3) Cut Merge (Rust)
 tss3=$(date +%s)
@@ -229,6 +239,11 @@ info "Step 3: cut_merge"
   --combinations "$WORKDIR/results/combinations.csv" \
   --cuts-dir "$WORKDIR/results/cuts" \
   $S3ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 3 failed: $res
+    exit 1
+fi
 
 ######## 4) Fragment Generation
 tss4=$(date +%s)
@@ -236,6 +251,11 @@ info Took $((tss4 - tss3)) seconds.
 
 info "Step 4: fragment_generation.py"
 python3 fragment_generation.py $S4ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 4 failed: $res
+    exit 1
+fi
 
 ######## 5) Fragment Generation (Rust)
 tss5=$(date +%s)
@@ -246,6 +266,11 @@ info "Step 5: fragment_generation"
   --out-dir "$WORKDIR/results/" \
   --combinations "$WORKDIR/results/combinations.csv" \
   $S5ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 5 failed: $res
+    exit 1
+fi
 
 ######## 6) Postprocess Metrics
 tss6=$(date +%s)
@@ -253,6 +278,11 @@ info Took $((tss6 - tss5)) seconds.
 
 info "Step 6: postprocess_metrics.py"
 python3 postprocess_metrics.py $S6ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 6 failed: $res
+    exit 1
+fi
 
 ######## 7) Annotation
 tss7=$(date +%s)
@@ -261,6 +291,11 @@ info Took $((tss7 - tss6)) seconds.
 if [ $DO_ANNOTATION -eq 1 ] ; then
     info "Step 7: annotation.py"
     python3 annotation.py $S7ARGS
+    res=$?
+    if [ $res -ne 0 ] ; then
+	err Step 7 failed: $res
+	exit 1
+    fi
 else
     info "Step 7: annotation.py skipped (no --te / --annotation provided)"
 fi
@@ -271,6 +306,11 @@ info Took $((tss8 - tss7)) seconds.
 
 info "Step 8: summary.py"
 python3 summary.py $S8ARGS
+res=$?
+if [ $res -ne 0 ] ; then
+    err Step 8 failed: $res
+    exit 1
+fi
 
 
 ######## 9) Plots
@@ -280,6 +320,11 @@ info Took $((tss9 - tss8)) seconds.
 if [ $RUN_PLOTS -eq 1 ] ; then
     info "Step 9: plots.py"
     python3 plots.py $S9ARGS
+    res=$?
+    if [ $res -ne 0 ] ; then
+	err Step 9 failed: $res
+	exit 1
+    fi
 else
     info "Step 9: plots.py skipped (--skip-plots)"
 fi
