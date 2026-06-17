@@ -24,7 +24,13 @@ struct Cut {
 #[command(name = "cuts_merge")]
 struct Cli {
     #[arg(long)]
-    workdir: PathBuf,
+    cuts_dir: PathBuf,
+
+    #[arg(long)]
+    combinations: PathBuf,
+
+    #[arg(long)]
+    out_dir: PathBuf,
 
     #[arg(long, short = 'p', default_value_t = 2)]
     parallel: usize,
@@ -72,6 +78,7 @@ fn load_combinations(path: &Path) -> Vec<Combination> {
 }
 
 // cuts.csv - accession, cut_position, enzyme
+
 fn write_cuts_csv(path: &Path, cuts: &[Cut]) {
     let mut out = String::with_capacity(cuts.len() * 48);
     out.push_str("accession,cut_position,enzyme\n");
@@ -130,21 +137,16 @@ fn main() {
         .build_global()
         .expect("Cannot build Rayon thread pool");
 
-    let results_dir = cli.workdir.join("results");
-    let cuts_dir = results_dir.join("cuts");
-    let combinations = results_dir.join("combinations.csv");
-    let out_dir = results_dir.clone();
+    fs::create_dir_all(&cli.out_dir)
+        .unwrap_or_else(|_| panic!("Cannot create out_dir: {:?}", cli.out_dir));
 
-    fs::create_dir_all(&out_dir)
-        .unwrap_or_else(|_| panic!("Cannot create out_dir: {:?}", out_dir));
-
-    let combos = load_combinations(&combinations);
+    let combos = load_combinations(&cli.combinations);
 
     println!("[INFO] combinations: {}", combos.len());
     println!("[INFO] threads:      {}", cli.parallel);
 
-    let cuts_dir = Arc::new(cuts_dir);
-    let out_dir  = Arc::new(out_dir);
+    let cuts_dir = Arc::new(cli.cuts_dir);
+    let out_dir  = Arc::new(cli.out_dir);
 
     combos.par_iter().for_each(|combo| {
         process_combo(combo, &cuts_dir, &out_dir);

@@ -1,6 +1,7 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{PathBuf, Path},
+    sync::Arc,
 };
 
 use clap::Parser;
@@ -15,35 +16,70 @@ struct Combination {
 #[derive(Clone, Debug)]
 struct Cut {
     accession: String,
-    pos: i64,
-    enzyme: String,
+    pos:       i64,
+    enzyme:    String,
 }
 
 #[derive(Clone, Debug)]
 struct Fragment {
-    accession: String,
-    start_pos: i64,
-    start_enzyme: String,
-    end_enzyme: String,
+    accession:       String,
+    start_pos:       i64,
+    start_enzyme:    String,
+    end_enzyme:      String,
     fragment_length: i64,
+}
+
+#[derive(Clone, Debug)]
+struct SizeRange {
+    low:  i64,
+    high: i64,
+}
+
+fn parse_size_range(s: &str) -> Result<SizeRange, String> {
+    let (low_str, high_str) = s
+        .split_once('-')
+        .ok_or_else(|| format!("--size must be LOW-HIGH, e.g. 150-350, you wrote: '{}'", s))?;
+
+    let low: i64 = low_str
+        .parse()
+        .map_err(|_| format!("Invalid number: {}", low_str))?;
+
+    let high: i64 = high_str
+        .parse()
+        .map_err(|_| format!("Invalid number: {}", high_str))?;
+
+    if low > high {
+        return Err(format!(
+            "LOW ({}) must be lower than HIGH ({})",
+            low, high
+        ));
+    }
+
+    Ok(SizeRange { low, high })
 }
 
 #[derive(Parser)]
 #[command(name = "fragment_generation")]
 struct Cli {
     #[arg(long)]
-    workdir: PathBuf,
+    out_dir: PathBuf,
+
+    #[arg(long)]
+    combinations: PathBuf,
 
     #[arg(long, short = 'p', default_value_t = 2)]
     parallel: usize,
+
+    #[arg(long, value_parser = parse_size_range)]
+    size: SizeRange,
 }
 
-// load cuts.csv (accession, cut_position, enzyme)
-fn load_cuts(path: &Path) -> Vec<Cut> {
+// load cuts_clean.csv (accession, cut_position, enzyme)
+fn load_cuts_clean(path: &Path) -> Vec<Cut> {
     let mut rdr = ReaderBuilder::new()
         .has_headers(true)
         .from_path(path)
-        .unwrap_or_else(|_| panic!("Cannot open cuts CSV: {:?}", path));
+        .unwrap_or_else(|_| panic!("Cannot open cuts_clean CSV: {:?}", path));
 
     rdr.records()
         .filter_map(|r| {
@@ -53,8 +89,8 @@ fn load_cuts(path: &Path) -> Vec<Cut> {
             }
             Some(Cut {
                 accession: r[0].to_string(),
-                pos: r[1].parse().expect("Invalid cut_position"),
-                enzyme: r[2].to_string(),
+                pos:       r[1].parse().expect("Invalid cut_position"),
+                enzyme:    r[2].to_string(),
             })
         })
         .collect()
@@ -99,10 +135,10 @@ fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
         }
 
         fragments.push(Fragment {
-            accession: a.accession.clone(),
-            start_pos: a.pos,
+            accession:    a.accession.clone(),
+            start_pos:    a.pos,
             start_enzyme: a.enzyme.clone(),
-            end_enzyme: b.enzyme.clone(),
+            end_enzyme:   b.enzyme.clone(),
             fragment_length: b.pos - a.pos,
         });
     }
@@ -110,7 +146,7 @@ fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
     fragments
 }
 
-// write fragments.csv
+// write fragments.csv - one thread per combination
 fn write_fragments_csv(path: &Path, frags: &[Fragment]) {
     let mut out = String::with_capacity(frags.len() * 64);
     out.push_str("accession,start_pos,start_enzyme,end_enzyme,fragment_length\n");
@@ -123,28 +159,46 @@ fn write_fragments_csv(path: &Path, frags: &[Fragment]) {
     fs::write(path, &out).unwrap_or_else(|_| panic!("Cannot write {:?}", path));
 }
 
-// one combo processing: READ - results/<ea>_<eb>/cuts.csv, WRITE - results/<ea>_<eb>/fragments.csv
-fn process_combo(combo: &Combination, out_dir: &Path) {
+// one combo processing: READ-ONLY - results/<ea>_<eb>/cuts_clean.csv, WRITE - results/<ea>_<eb>/fragments.csv/filtered.csv
+fn process_combo(
+    combo:   &Combination,
+    out_dir: &Path,
+    size:    &SizeRange,
+) {
     let ea = &combo.enzyme_a;
     let eb = &combo.enzyme_b;
 
     let combo_dir = out_dir.join(format!("{}_{}", ea, eb));
-    let cuts_path = combo_dir.join("cuts.csv");
+    let cuts_clean_path = combo_dir.join("cuts.csv");
 
-    // read cuts.csv
-    let cuts = load_cuts(&cuts_path);
+    assert!(
+        cuts_clean_path.exists(),
+        "Missing cuts_clean.csv: {:?}",
+        cuts_clean_path
+    );
 
-    // generate fragments from all cuts
-    let fragments = find_fragments(&cuts);
+    // read cuts_clean.csv
+    let cuts = load_cuts_clean(&cuts_clean_path);
 
-    // write fragments.csv
-    write_fragments_csv(&combo_dir.join("fragments.csv"), &fragments);
+    // lenght of all fragments
+    let all = find_fragments(&cuts);
+    let all_count = all.len();
+
+    // filter by size range
+    let filtered: Vec<Fragment> = all
+        .iter()
+        .filter(|f| f.fragment_length >= size.low && f.fragment_length <= size.high)
+        .cloned()
+        .collect();
+    let filtered_count = filtered.len();
+
+    // write csv fragments.csv a filtered.csv into results/<ea>_<eb>/ per thread
+    write_fragments_csv(&combo_dir.join("fragments.csv"), &all);
+    write_fragments_csv(&combo_dir.join("filtered.csv"), &filtered);
 
     println!(
-        "[OK] {}_{} -> fragments: {}",
-        ea,
-        eb,
-        fragments.len(),
+        "[OK] {}_{} -> all: {}, filtered: {}",
+        ea, eb, all_count, filtered_count
     );
 }
 
@@ -156,18 +210,17 @@ fn main() {
         .build_global()
         .expect("Cannot build Rayon thread pool");
 
-    let results_dir = cli.workdir.join("results");
-    let combinations_path = results_dir.join("combinations.csv");
-
-    let combos = load_combinations(&combinations_path);
+    let combos = load_combinations(&cli.combinations);
 
     println!("[INFO] combinations: {}", combos.len());
     println!("[INFO] threads:      {}", cli.parallel);
+    println!("[INFO] size window:  {}-{}", cli.size.low, cli.size.high);
 
-    let out_dir = results_dir;
+    let out_dir = Arc::new(cli.out_dir);
+    let size    = Arc::new(cli.size);
 
     combos.par_iter().for_each(|combo| {
-        process_combo(combo, &out_dir);
+        process_combo(combo, &out_dir, &size);
     });
 
     println!("[OK] done.");
