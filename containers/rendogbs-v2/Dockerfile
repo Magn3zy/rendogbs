@@ -26,6 +26,7 @@ COPY src/rendogbs_pipeline.py /home/rendogbs/
 COPY src/rendogbs_plots.py /home/rendogbs/
 COPY src/endonucleases.py /home/rendogbs/
 COPY src/enzymes.csv /home/rendogbs/
+COPY src/allowed_pairs.csv /home/rendogbs/
 
 COPY --from=rendogbs-rust:latest /home/build/rendogbs_finder/target/release/rendogbs_finder /home/rendogbs/
 COPY --from=rendogbs-rust:latest /home/build/cut_merge/target/release/cut_merge /home/rendogbs/

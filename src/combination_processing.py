@@ -85,7 +85,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     enzymes_csv = os.path.join(script_dir, 'enzymes.csv')
-    allowed_path = os.path.join(script_dir, 'allowed_pair.csv')
+    allowed_path = os.path.join(script_dir, 'allowed_pairs.csv')
 
     print(f'[1/3] Loading: {enzymes_csv}')
     enzyme_db: dict[str, list[dict]] = load_enzymes_csv(enzymes_csv)
