@@ -151,6 +151,10 @@ IMAGE=$IMGNAME
 # Iterate through all command-line options and their arguments
 while [ -n "$1" ] ; do
     case "$1" in
+	--help|-h)
+	    usage
+	    exit 0
+	    ;;
 	--singularity)
 	    CCMD=`which singularity`
 	    IMAGE="$sd/$IMGNAME.sif"

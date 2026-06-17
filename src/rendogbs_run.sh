@@ -288,6 +288,23 @@ fi
 
 tsse=$(date +%s)
 
-info Elapsed time $((tsse - tss1)) seconds.
+summary_table() {
+    echo " Step |  Begin  |   End   | Duration"
+    echo "------+---------+---------+----------"
+    idx=1
+    zero=$1
+    while [ -n "$2" ] ; do
+	start=$(($1 - zero))
+	end=$(($2 - zero))
+	dur=$((end - start))
+	printf "   %2d | %7d | %7d |  %7d\n" $idx $start $end $dur
+	shift
+	idx=$((idx + 1))
+    done
+}
+
+echo
+summary_table $tss1 $tss2 $tss3 $tss4 $tss5 $tss6 $tss7 $tss8 $tss9 $tsse
+echo
 
 echo "  Results  : ${WORKDIR}/results/"
