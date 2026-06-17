@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# summary.py
+# Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+#
+# Summarize ddRAD library stats into one table by enzyme combination
+# Output: summary.tsv
 
 import csv
 import argparse
