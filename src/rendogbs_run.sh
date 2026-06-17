@@ -117,6 +117,7 @@ RUN_PLOTS=1
 
 # Local arguments
 WORKDIR=
+DO_ANNOTATION=0
 
 # Passed arguments to both subtasks
 S1ARGS=
@@ -124,6 +125,8 @@ S2ARGS=
 S3ARGS=
 S4ARGS=
 S5ARGS=
+S6ARGS=
+S7ARGS=
 
 # Iterate over all command-line options and their arguments accordingly
 while [ -n "$1" ] ; do
@@ -142,6 +145,7 @@ while [ -n "$1" ] ; do
 	    S1ARGS="$S1ARGS $1 $2"
 	    S4ARGS="$S4ARGS $1 $2"
 	    S6ARGS="$S6ARGS $1 $2"
+	    S7ARGS="$S7ARGS $1 $2"
 	    PLOTS_ARGS="$PLOTS_ARGS $1 $2"
 	    shift
 	    shift
@@ -170,6 +174,7 @@ while [ -n "$1" ] ; do
 	    S4ARGS="$S4ARGS $1 $2"
 	    S5ARGS="$S5ARGS $1 $2"
 	    S6ARGS="$S6ARGS $1 $2"
+	    S7ARGS="$S7ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
@@ -182,6 +187,12 @@ while [ -n "$1" ] ; do
 	--help|-h)
 	    usage
 	    exit 0
+	    ;;
+	--annotation|--te)
+	    DO_ANNOTATION=1
+	    S7ARGS="$S7ARGS $1 $2"
+	    shift
+	    shift
 	    ;;
 	*)
 	    shift
@@ -242,10 +253,20 @@ info "Step 6: postprocess_metrics.py"
 python3 postprocess_metrics.py \
 	$S6ARGS
 
-########
+######## 7) Annotation
 tss7=$(date +%s)
 info Took $((tss7 - tss6)) seconds.
 
+if [ $DO_ANNOTATION -eq 1 ] ; then
+    info "Step 7: annotation.py"
+    python3 annotation.py $S7ARGS
+else
+    info "Step 7: annotation.py skipped (no --te / --annotation provided)"
+fi
+
+########
+tss8=$(date +%s)
+info Took $((tss8 - tss7)) seconds.
 
 find "$WORKDIR"
 
