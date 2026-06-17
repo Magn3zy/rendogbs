@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
-"""
-postprocess_metrics.py  -  Post-processing kombinací
-Pro každou kombinaci z combinations.csv
-vypisuje do <workdir>/results/:
-  contig_lengths.txt  - délky referenčních sekvencí seřazené sestupně sloupce: accession, length_bp
+# postprocess_metrics.py
+# Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+#
+# Filltered fragments for ddRAD library GC content, size distribution of all fragments
+# Output: distribution.csv, gc_metrics.csv, contig_lengths.txt
 
-vypisuje do <workdir>/results/<enzymeA>_<enzymeB>/:
-  distribution.csv    - distribuce délek všech fragmentů z fragments.csv
-                         standardní biny 0-99 .. 900-999, >=1000
-                         + řádek custom_LOW-HIGH pro vybraný size window
-  gc_metrics.csv      - GC statistiky fragmentů z filtered.csv
-
-Vstupy:
-  combinations.csv    - sloupce: enzyme_a,enzyme_b
-  fragments.csv       - sloupce: accession,start_pos,start_enzyme,end_enzyme,fragment_length
-  filtered.csv        - sloupce: accession,start_pos,start_enzyme,end_enzyme,fragment_length
-  reference FASTA     - pro výpočet GC obsahu
-
-Implementace (rendogbs.sh):
-  python postprocess_combo_metrics.py \
-      --workdir ./run1 \
-      --ref genome.fa.gz \
-      --size 150-350 \
-      --parallel 2
-
-"""
-
-from __future__ import annotations
 import argparse
 import csv
 import gzip
@@ -35,6 +13,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
+from __future__ import annotations
 
 FragmentRow = tuple[str, int, str, str, int]
 
@@ -145,12 +124,7 @@ def label_overlaps_range(label: str, low: int, high: int) -> bool:
     return b_lo <= high and b_hi >= low
 
 
-def build_distribution_rows(
-    fragments: list[FragmentRow],
-    filtered_count: int,
-    size_low: int,
-    size_high: int,
-) -> list[list[Any]]:
+def build_distribution_rows(fragments: list[FragmentRow], filtered_count: int, size_low: int, size_high: int) -> list[list[Any]]:
     counts = defaultdict(int)
     for _, _, _, _, fl in fragments:
         counts[std_size_label(fl)] += 1
@@ -227,12 +201,7 @@ def init_worker(ref_path: str) -> None:
     _WORKER_REF_SEQS = {acc: seq for acc, seq in read_fasta_contigs(Path(ref_path))}
 
 
-def process_combination(
-    combo_name: str,
-    results_dir: str,
-    size_low: int,
-    size_high: int,
-) -> dict[str, Any]:
+def process_combination(combo_name: str, results_dir: str, size_low: int, size_high: int) -> dict[str, Any]:
     global _WORKER_REF_SEQS
 
     results_path = Path(results_dir)

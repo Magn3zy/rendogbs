@@ -100,6 +100,7 @@
 
     output  - <workdir>/results/<EnzA_EnzB>/distribution.csv
             - <workdir>/results/<EnzA_EnzB>/gc_metrics.csv
+            - <workdir>/results/contig_lengths.txt
 
 7) annotation.py       <-- optional run determined by --te / --annotation
     input   - <path_from_user>/annotation.gff/gff3
