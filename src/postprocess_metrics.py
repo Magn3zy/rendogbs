@@ -5,6 +5,7 @@
 # Filltered fragments for ddRAD library GC content, size distribution of all fragments
 # Output: distribution.csv, gc_metrics.csv, contig_lengths.txt
 
+from __future__ import annotations
 import argparse
 import csv
 import gzip
@@ -13,7 +14,6 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
-from __future__ import annotations
 
 FragmentRow = tuple[str, int, str, str, int]
 
