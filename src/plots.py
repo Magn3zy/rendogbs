@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
+# plots.py
+# Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+#
+# Plot generation as pipeline summary for easy visualization
+# Output: annotation_coverage.png, bar_chom_distribution.png, gc_distribution.png,
+#         heatmap_fragment_lengths.png, heatmap_chrom_distribution.png, size_distribution.png
+
 import os
 import csv
 import argparse
 import sys
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")  # no GUI
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import LogNorm
 import matplotlib.patches as mpatches
 
-# globalni styl grafu
+# global plot style
 PALETTE = "viridis"
 FIG_EXT = "png"
 _DPI    = 300
@@ -19,7 +26,7 @@ _DPI    = 300
 # categories that represent the whole genome (100%) – excluded from annotation plots
 _SKIP_CATS = {"total_filtered_bases", "gff:region"}
 
-# barva pro neanotovane useky – jasne odlisna od kodujicich kategorii
+# no annotation info - fix color
 UNANNOTATED_COLOR = "#b0b0b0"
 
 plt.rcParams.update({
@@ -36,7 +43,6 @@ def parse_size_range(s):
 
 
 def discover_combos(results_dir):
-    """Vraci list serazenych kombinaci enzymu z nazvu podsložek."""
     combos = []
     for entry in sorted(os.scandir(results_dir), key=lambda e: e.name):
         if entry.is_dir() and os.path.isfile(
@@ -46,7 +52,6 @@ def discover_combos(results_dir):
 
 
 def read_csv_rows(path):
-    """Nacteni CSV souboru, vraci seznam slovniku. Kontroluje existenci souboru."""
     if not os.path.isfile(path):
         return []
     with open(path, newline="") as fh:
@@ -54,7 +59,6 @@ def read_csv_rows(path):
 
 
 def read_distribution_csv(path):
-    """Nacteni distribution.csv, vraci slovnik {length_range: count}."""
     d = {}
     for row in read_csv_rows(path):
         try:
@@ -65,16 +69,11 @@ def read_distribution_csv(path):
 
 
 def read_gc_metrics_csv(path):
-    """Nacteni gc_metrics.csv, vraci slovnik {metric: value}."""
     return {row["metric"]: row["value"] for row in read_csv_rows(path)
             if "metric" in row}
 
 
 def read_annotation_summary_csv(path):
-    """
-    Nacteni annotation_summary.csv, vraci slovnik {category: pct_of_library}.
-    Preskakuje total_filtered_bases a gff:region (reprezentuji 100 % genomu).
-    """
     d = {}
     for row in read_csv_rows(path):
         cat = row.get("category", "")
@@ -88,7 +87,6 @@ def read_annotation_summary_csv(path):
 
 
 def read_contig_lengths_txt(results_dir):
-    """Nacteni contig_lengths.txt, vraci list (accession, delka)."""
     path = os.path.join(results_dir, "contig_lengths.txt")
     rows = []
     with open(path) as fh:
@@ -101,7 +99,6 @@ def read_contig_lengths_txt(results_dir):
 
 
 def save(fig, plots_dir, name):
-    """Ulozeni matplotlib figure do souboru PNG."""
     os.makedirs(plots_dir, exist_ok=True)
     path = os.path.join(plots_dir, f"{name}.{FIG_EXT}")
     fig.savefig(path, dpi=_DPI, bbox_inches="tight")
@@ -109,9 +106,8 @@ def save(fig, plots_dir, name):
     print(f"  [plot] saved -> {path}")
     return path
 
-
+# heatmap fragment lengths fragments.csv
 def plot_heatmap(results_dir, combos, plots_dir):
-    """Fragment length heatmap (10 bp bins, log scale). Zdroj: fragments.csv."""
     bin_width = 10
     max_len   = 1000
     edges     = list(range(0, max_len + 1, bin_width)) + [float("inf")]
@@ -160,9 +156,8 @@ def plot_heatmap(results_dir, combos, plots_dir):
 
     save(fig, plots_dir, "heatmap_fragment_lengths")
 
-
+# graphs for chromozome distribution
 def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
-    """Heatmap + grouped bar graf distribuce filtrovanych fragmentu po chromozomech."""
     contig_list = read_contig_lengths_txt(results_dir)
     chroms      = [acc for acc, _ in contig_list[:n_chroms]]
     chrom_idx   = {acc: i for i, acc in enumerate(chroms)}
@@ -186,7 +181,7 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
         for i in range(n_c)
     ]
 
-    # -- heatmap --
+    # heatmap
     fig_h = max(4, len(combos) * 0.40 + 1.5)
     fig_w = max(8, n_c * 0.55 + 3)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
@@ -203,7 +198,7 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
     fig.colorbar(im, ax=ax, shrink=0.8).set_label("Fragment count")
     save(fig, plots_dir, "heatmap_chrom_distribution")
 
-    # -- grouped bar --
+    # grouped bar chart
     fig_w2 = max(10, n_c * max(len(combos), 1) * 0.05 + 3)
     fig2, ax2 = plt.subplots(figsize=(fig_w2, 5))
 
@@ -229,9 +224,8 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
                bbox_to_anchor=(1.01, 1), borderaxespad=0)
     save(fig2, plots_dir, "bar_chrom_distribution")
 
-
+# gc content
 def plot_gc_distribution(results_dir, combos, plots_dir):
-    """GC content graf pro kazdou kombinaci: mean ± SD, median, whiskers = min/max."""
     labels  = []
     means   = []
     medians = []
@@ -283,7 +277,7 @@ def plot_gc_distribution(results_dir, combos, plots_dir):
         ticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
     save(fig, plots_dir, "gc_distribution")
 
-
+# annotation
 def plot_annotation_coverage(results_dir, combos, plots_dir):
     gff_cats_set, te_cats_set = set(), set()
     data = {}
@@ -338,7 +332,7 @@ def plot_annotation_coverage(results_dir, combos, plots_dir):
                 color=colors[j % len(colors)],
                 label=cat.split(":", 1)[1],
             )
-            # popisek jen pokud segment >= 10 %
+            # label in % on 10% or more
             for i, (left, val) in enumerate(zip(lefts, vals)):
                 if val >= 10.0:
                     ax.text(
@@ -347,7 +341,7 @@ def plot_annotation_coverage(results_dir, combos, plots_dir):
                         fontweight="bold",
                     )
 
-        # neanotovane useky – zbytek do 100 %
+        # unannotated to 100%
         unannotated_in_legend = False
         for i, combo in enumerate(combos_found):
             total     = sum(data[combo].get(cat, 0) for cat in cats)
@@ -383,9 +377,8 @@ def plot_annotation_coverage(results_dir, combos, plots_dir):
     fig.tight_layout()
     save(fig, plots_dir, "annotation_coverage")
 
-
+# size distribution different
 def plot_size_distributions(results_dir, combos, plots_dir, size_low, size_high):
-    """Line plot velikostnich distribucí (100 bp bins) s vyznacenym uzivatelskym oknem."""
     std_labels = [f"{b}-{b+99}" for b in range(0, 1000, 100)] + [">=1000"]
     x_pos      = np.arange(len(std_labels))
     n          = len(combos)
@@ -429,18 +422,10 @@ def parse_args():
         prog="rendogbs_plots.py",
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    p.add_argument("--workdir",
-                   required=True,
-                   help="rendogbs working directory (results/ sub-dir is read)")
-    p.add_argument("--size",
-                   required=True,
-                   help="Size window used in the pipeline run, e.g. 200-400")
-    p.add_argument("--chroms",
-                   type=int, default=10,
-                   help="Number of longest contigs treated as chromosomes (default: 10)")
-    p.add_argument("--dpi",
-                   type=int, default=300,
-                   help="Output figure resolution in DPI (default: 300)")
+    p.add_argument("--workdir", required=True)
+    p.add_argument("--size", required=True)
+    p.add_argument("--chroms", type=int, required=True)
+    p.add_argument("--dpi", type=int, default=300)
     return p.parse_args()
 
 def main():
