@@ -1,25 +1,49 @@
 #!/usr/bin/env python3
+# annotation.py
+# Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+#
+# Annotation of ddRAD fragments using bedtools
+#
+# This workflow uses Bedtools.
+# Bedtools: https://github.com/arq5x/bedtools2
+# Copyright (c) Aaron Quinlan
+# Licensed under the MIT License.
+#
+# Output: annotation_coverage.png, bar_chom_distribution.png, gc_distribution.png,
+#         heatmap_fragment_lengths.png, heatmap_chrom_distribution.png, size_distribution.png
+
 from __future__ import annotations
 import argparse
 import csv
 import gzip
 import shutil
-import sys
+import subprocess
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Iterable
+
 
 @dataclass(frozen=True)
 class AnnotationSource:
-    label: str   # např. gff:gene nebo te:LTR_Gypsy
-    path: str    # merged BED
+    label: str
+    path: Path
 
 
 FragmentRow = tuple[str, int, str, str, int]
-Interval = tuple[int, int]
-IntervalDict = dict[str, list[Interval]]
+BedRecord = tuple[str, int, int]
+
+
+GFF_PRIORITY = [
+    "CDS",
+    "five_prime_UTR",
+    "three_prime_UTR",
+    "exon",
+    "mRNA",
+    "gene",
+]
+
 
 def open_text(path: Path):
     return gzip.open(path, "rt") if str(path).endswith(".gz") else open(path, "r", encoding="utf-8")
@@ -32,6 +56,10 @@ def check_bedtools() -> str:
     return bedtools
 
 
+def file_is_empty(path: Path) -> bool:
+    return (not path.exists()) or path.stat().st_size == 0
+
+
 def load_combinations_csv(path: Path) -> list[str]:
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
@@ -41,52 +69,29 @@ def load_combinations_csv(path: Path) -> list[str]:
 def read_filtered_csv(path: Path) -> list[FragmentRow]:
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
-        rows = []
+        rows: list[FragmentRow] = []
         for r in reader:
-            rows.append((
-                r["accession"],
-                int(r["start_pos"]),
-                r["start_enzyme"],
-                r["end_enzyme"],
-                int(r["fragment_length"]),
-            ))
+            rows.append(
+                (
+                    r["accession"],
+                    int(r["start_pos"]),
+                    r["start_enzyme"],
+                    r["end_enzyme"],
+                    int(r["fragment_length"]),
+                )
+            )
     return rows
 
-def merge_intervals(intervals: list[Interval]) -> list[Interval]:
-    """Merge overlapping / touching half-open intervals [start, end)."""
-    if not intervals:
-        return []
 
-    intervals = sorted(intervals)
-    merged: list[Interval] = []
-    cur_s, cur_e = intervals[0]
-
-    for s, e in intervals[1:]:
-        if s <= cur_e:
-            cur_e = max(cur_e, e)
-        else:
-            merged.append((cur_s, cur_e))
-            cur_s, cur_e = s, e
-
-    merged.append((cur_s, cur_e))
-    return merged
+def write_bed_records(records: Iterable[BedRecord], out: Path) -> None:
+    with open(out, "w", encoding="utf-8") as fh:
+        for chrom, start, end in records:
+            if end > start:
+                fh.write(f"{chrom}\t{start}\t{end}\n")
 
 
-def merge_interval_dict(intervals_by_chrom: IntervalDict) -> IntervalDict:
-    return {
-        chrom: merge_intervals(intervals)
-        for chrom, intervals in intervals_by_chrom.items()
-        if intervals
-    }
-
-
-def interval_dict_length(intervals_by_chrom: IntervalDict) -> int:
-    return sum(e - s for intervals in intervals_by_chrom.values() for s, e in intervals)
-
-
-def load_bed_intervals(path: Path) -> IntervalDict:
-    """Load BED (already merged or not) into chrom -> merged intervals."""
-    by_chrom: IntervalDict = defaultdict(list)
+def bed_length(path: Path) -> int:
+    total = 0
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             if not line.strip():
@@ -94,159 +99,141 @@ def load_bed_intervals(path: Path) -> IntervalDict:
             c = line.rstrip().split("\t")
             if len(c) < 3:
                 continue
-            chrom = c[0]
-            start = int(c[1])
-            end = int(c[2])
-            if end > start:
-                by_chrom[chrom].append((start, end))
-    return merge_interval_dict(by_chrom)
+            s = int(c[1])
+            e = int(c[2])
+            if e > s:
+                total += e - s
+    return total
 
 
-def subtract_sorted_intervals(a: list[Interval], b: list[Interval]) -> list[Interval]:
-    """Return a - b for two sorted non-overlapping interval lists."""
-    if not a:
-        return []
-    if not b:
-        return a[:]
+def run_bedtools_to_file(bedtools: str, args: list[str], out: Path) -> None:
+    with open(out, "w", encoding="utf-8") as fh:
+        subprocess.run([bedtools, *args], stdout=fh, text=True, check=True)
 
-    out: list[Interval] = []
-    j = 0
-    n_b = len(b)
+# Wait for all processes and raise if any exited non-zero
+def _check_procs(procs: list[subprocess.Popen], labels: list[str]) -> None:
+    for proc, label in zip(procs, labels):
+        rc = proc.wait()
+        if rc != 0:
+            raise SystemExit(f"[ERROR] {label} failed with exit code {rc}")
 
-    for s, e in a:
-        cur = s
+# Sort and merge a BED file - without temp files
+def bedtools_sort_merge(bedtools: str, inp: Path, out: Path) -> None:
+    if file_is_empty(inp):
+        out.write_text("", encoding="utf-8")
+        return
 
-        while j < n_b and b[j][1] <= cur:
-            j += 1
-
-        k = j
-        while k < n_b and b[k][0] < e:
-            bs, be = b[k]
-
-            if bs > cur:
-                out.append((cur, min(bs, e)))
-
-            cur = max(cur, be)
-            if cur >= e:
-                break
-            k += 1
-
-        if cur < e:
-            out.append((cur, e))
-
-    return out
-
-
-def subtract_interval_dict(a: IntervalDict, b: IntervalDict) -> IntervalDict:
-    out: IntervalDict = {}
-    for chrom, a_ints in a.items():
-        b_ints = b.get(chrom, [])
-        if not b_ints:
-            out[chrom] = a_ints[:]
-        else:
-            out[chrom] = subtract_sorted_intervals(a_ints, b_ints)
-    return {chrom: ints for chrom, ints in out.items() if ints}
+    # bedtools sort -i <inp> | bedtools merge -i stdin
+    p_sort = subprocess.Popen(
+        [bedtools, "sort", "-i", str(inp)],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    with open(out, "w", encoding="utf-8") as fh:
+        p_merge = subprocess.Popen(
+            [bedtools, "merge", "-i", "stdin"],
+            stdin=p_sort.stdout,
+            stdout=fh,
+            text=True,
+        )
+    # Close our copy of the write-end so p_merge receives EOF when p_sort exits.
+    if p_sort.stdout:
+        p_sort.stdout.close()
+    _check_procs([p_sort, p_merge], ["bedtools sort", "bedtools merge"])
 
 
-def intersect_sorted_intervals(a: list[Interval], b: list[Interval]) -> int:
-    """Return total overlap length of two sorted non-overlapping interval lists."""
-    if not a or not b:
+def bedtools_subtract(bedtools: str, a: Path, b: Path, out: Path) -> None:
+    if file_is_empty(a):
+        out.write_text("", encoding="utf-8")
+        return
+    if file_is_empty(b):
+        shutil.copyfile(a, out)
+        return
+    run_bedtools_to_file(bedtools, ["subtract", "-sorted", "-a", str(a), "-b", str(b)], out)
+
+
+def bedtools_intersect_sum(bedtools: str, a: Path, b: Path) -> int:
+    if file_is_empty(a) or file_is_empty(b):
         return 0
 
-    i = j = 0
-    total = 0
-
-    while i < len(a) and j < len(b):
-        s1, e1 = a[i]
-        s2, e2 = b[j]
-
-        start = max(s1, s2)
-        end = min(e1, e2)
-        if start < end:
-            total += end - start
-
-        if e1 < e2:
-            i += 1
-        else:
-            j += 1
-
-    return total
-
-
-def intersect_interval_dict(a: IntervalDict, b: IntervalDict) -> int:
-    total = 0
-    for chrom, a_ints in a.items():
-        total += intersect_sorted_intervals(a_ints, b.get(chrom, []))
-    return total
-
-
-def union_interval_dict(a: IntervalDict, b: IntervalDict) -> IntervalDict:
-    out: IntervalDict = defaultdict(list)
-    for chrom, ints in a.items():
-        out[chrom].extend(ints)
-    for chrom, ints in b.items():
-        out[chrom].extend(ints)
-    return merge_interval_dict(out)
-
-
-def read_rows_as_intervals(rows: list[FragmentRow]) -> IntervalDict:
-    by_chrom: IntervalDict = defaultdict(list)
-    for acc, start, _, _, fl in rows:
-        by_chrom[acc].append((start, start + fl))
-    return merge_interval_dict(by_chrom)
-
-
-def write_filtered_bed(rows: list[FragmentRow], out: Path) -> int:
-    total = 0
-    with open(out, "w", encoding="utf-8") as fh:
-        for acc, start, _, _, fl in sorted(rows):
-            end = start + fl
-            fh.write(f"{acc}\t{start}\t{end}\n")
-            total += fl
-    return total
-
-
-def sort_merge(bedtools: str, inp: Path, out: Path):
-    with tempfile.TemporaryDirectory() as td:
-        tmp = Path(td) / "sorted.bed"
-
-        with open(tmp, "w", encoding="utf-8") as out_sorted:
-            import subprocess
-            subprocess.run([bedtools, "sort", "-i", str(inp)],
-                           stdout=out_sorted, check=True, text=True)
-
-        with open(out, "w", encoding="utf-8") as out_final:
-            import subprocess
-            subprocess.run([bedtools, "merge", "-i", str(tmp)],
-                           stdout=out_final, check=True, text=True)
-
-
-def intersect_sum(bedtools: str, a: Path, b: Path) -> int:
-    import subprocess
-    proc = subprocess.run(
-        [bedtools, "intersect", "-a", str(a), "-b", str(b), "-wo"],
-        capture_output=True,
+    proc = subprocess.Popen(
+        [bedtools, "intersect", "-sorted", "-a", str(a), "-b", str(b), "-wo"],
+        stdout=subprocess.PIPE,
         text=True,
-        check=True
+    )
+    assert proc.stdout is not None
+
+    total = 0
+    for line in proc.stdout:
+        if line.strip():
+            total += int(line.rsplit("\t", 1)[-1])
+
+    rc = proc.wait()
+    if rc != 0:
+        raise SystemExit(f"[ERROR] bedtools intersect failed with exit code {rc}")
+
+    return total
+
+# Intersect a and b, then sort and merge without temp files
+def bedtools_intersect_to_file(bedtools: str, a: Path, b: Path, out: Path) -> None:
+    if file_is_empty(a) or file_is_empty(b):
+        out.write_text("", encoding="utf-8")
+        return
+
+    # bedtools intersect -sorted -a <a> -b <b> | bedtools sort | bedtools merge
+    p_isect = subprocess.Popen(
+        [bedtools, "intersect", "-sorted", "-a", str(a), "-b", str(b)],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    p_sort = subprocess.Popen(
+        [bedtools, "sort", "-i", "stdin"],
+        stdin=p_isect.stdout,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    with open(out, "w", encoding="utf-8") as fh:
+        p_merge = subprocess.Popen(
+            [bedtools, "merge", "-i", "stdin"],
+            stdin=p_sort.stdout,
+            stdout=fh,
+            text=True,
+        )
+    if p_isect.stdout:
+        p_isect.stdout.close()
+    if p_sort.stdout:
+        p_sort.stdout.close()
+    _check_procs(
+        [p_isect, p_sort, p_merge],
+        ["bedtools intersect", "bedtools sort", "bedtools merge"],
     )
 
-    total = 0
-    for line in proc.stdout.splitlines():
-        if line:
-            total += int(line.split("\t")[-1])
-    return total
+
+def read_rows_as_intervals(rows: list[FragmentRow]) -> list[BedRecord]:
+    return [(acc, start, start + fl) for acc, start, _, _, fl in rows if fl > 0]
 
 
-def build_gff_sources(gff: Path, cache: Path) -> list[AnnotationSource]:
+def build_library_bed(rows: list[FragmentRow], workdir: Path, bedtools: str) -> tuple[Path, int]:
+    raw = workdir / "filtered.bed"
+    merged = workdir / "filtered_merged.bed"
+
+    records = read_rows_as_intervals(rows)
+    write_bed_records(records, raw)
+    bedtools_sort_merge(bedtools, raw, merged)
+
+    return merged, bed_length(merged)
+
+
+def build_gff_sources(gff: Path, cache: Path, bedtools: str) -> list[AnnotationSource]:
     skip = {"region", "chromosome"}
-    by_label: dict[str, list[tuple[str, int, int]]] = defaultdict(list)
+    by_label: dict[str, list[BedRecord]] = defaultdict(list)
 
     with open_text(gff) as fh:
         for line in fh:
             if not line.strip() or line.startswith("#"):
                 continue
 
-            c = line.split("\t")
+            c = line.rstrip("\n").split("\t")
             if len(c) < 5:
                 continue
 
@@ -265,22 +252,35 @@ def build_gff_sources(gff: Path, cache: Path) -> list[AnnotationSource]:
 
     cache.mkdir(exist_ok=True, parents=True)
 
-    sources = []
-    for label in sorted(by_label):
-        intervals = by_label[label]
-        out = cache / f"{label.replace(':','_')}.bed"
-        write_merged(intervals, out)
-        sources.append(AnnotationSource(label=label, path=str(out)))
+    ordered_labels: list[str] = []
+    for feat in GFF_PRIORITY:
+        label = f"gff:{feat}"
+        if label in by_label:
+            ordered_labels.append(label)
+
+    ordered_labels.extend(sorted(label for label in by_label if label not in ordered_labels))
+
+    sources: list[AnnotationSource] = []
+    for label in ordered_labels:
+        safe = label.replace(":", "_")
+        raw = cache / f"{safe}.raw.bed"
+        merged = cache / f"{safe}.bed"
+
+        write_bed_records(by_label[label], raw)
+        bedtools_sort_merge(bedtools, raw, merged)
+        sources.append(AnnotationSource(label=label, path=merged))
 
     return sources
 
 
-def build_te_sources(te: Path, cache: Path) -> list[AnnotationSource]:
-    by_label: dict[str, list[tuple[str, int, int]]] = defaultdict(list)
+def build_te_sources(te: Path, cache: Path, bedtools: str) -> list[AnnotationSource]:
+    by_label: dict[str, list[BedRecord]] = defaultdict(list)
 
     with open_text(te) as fh:
         for i, line in enumerate(fh):
             if i < 3:
+                continue
+            if not line.strip() or line.startswith("#"):
                 continue
 
             p = line.split()
@@ -295,113 +295,117 @@ def build_te_sources(te: Path, cache: Path) -> list[AnnotationSource]:
             fam = p[10].split("/")[1] if "/" in p[10] else p[10]
 
             label = f"te:{cls}_{fam}"
-            by_label[label].append((chrom, start, end))
+            if end > start:
+                by_label[label].append((chrom, start, end))
 
     cache.mkdir(exist_ok=True, parents=True)
 
-    sources = []
+    sources: list[AnnotationSource] = []
     for label in sorted(by_label):
-        intervals = by_label[label]
-        out = cache / f"{label.replace(':','_')}.bed"
-        write_merged(intervals, out)
-        sources.append(AnnotationSource(label=label, path=str(out)))
+        safe = label.replace(":", "_")
+        raw = cache / f"{safe}.raw.bed"
+        merged = cache / f"{safe}.bed"
+
+        write_bed_records(by_label[label], raw)
+        bedtools_sort_merge(bedtools, raw, merged)
+        sources.append(AnnotationSource(label=label, path=merged))
 
     return sources
 
 
-def write_merged(intervals, out_path: Path):
-    if not intervals:
+def combine_beds(bedtools: str, left: Path, right: Path, out: Path) -> None:
+    if file_is_empty(left):
+        shutil.copyfile(right, out)
+        return
+    if file_is_empty(right):
+        shutil.copyfile(left, out)
         return
 
-    intervals.sort()
-    merged = []
-
-    c, s, e = intervals[0]
-    for chrom, start, end in intervals[1:]:
-        if chrom != c or start > e:
-            merged.append((c, s, e))
-            c, s, e = chrom, start, end
-        else:
-            e = max(e, end)
-
-    merged.append((c, s, e))
-
-    with open(out_path, "w", encoding="utf-8") as f:
-        for chrom, start, end in merged:
-            f.write(f"{chrom}\t{start}\t{end}\n")
+    with tempfile.TemporaryDirectory() as td_str:
+        tmp = Path(td_str) / "combined.bed"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            with open(left, encoding="utf-8") as a:
+                shutil.copyfileobj(a, fh)
+            with open(right, encoding="utf-8") as b:
+                shutil.copyfileobj(b, fh)
+        bedtools_sort_merge(bedtools, tmp, out)
 
 
 def count_unique_category_bases(
-    library_intervals: IntervalDict,
+    bedtools: str,
+    library_bed: Path,
     sources: list[AnnotationSource],
-    strand_multiplier: int = 2,
+    workdir: Path,
 ) -> dict[str, int]:
-    """
-    Count unique overlapping bases per category.
-
-    Overlaps between categories in the same source list are resolved
-    deterministically by source order so that a base is counted only once.
-    """
     counts: dict[str, int] = {}
-    claimed: IntervalDict = {}
 
-    for source in sources:
-        src = load_bed_intervals(Path(source.path))
-        exclusive = subtract_interval_dict(src, claimed)
-        overlap = intersect_interval_dict(library_intervals, exclusive)
-        counts[source.label] = overlap * strand_multiplier
-        claimed = union_interval_dict(claimed, exclusive)
+    # Pre-intersect every source with the library work on library-sized BED files
+    library_isect: list[Path] = []
+    for idx, source in enumerate(sources, start=1):
+        isect = workdir / f"{idx:03d}_{source.label.replace(':', '_')}_in_library.bed"
+        bedtools_intersect_to_file(bedtools, library_bed, source.path, isect)
+        library_isect.append(isect)
+
+    # Walk through categories in priority order, subtracting already-claimed bases
+    claimed = workdir / "claimed.bed"
+    claimed.write_text("", encoding="utf-8")
+
+    for idx, (source, isect) in enumerate(zip(sources, library_isect), start=1):
+        exclusive = workdir / f"{idx:03d}_{source.label.replace(':', '_')}_exclusive.bed"
+        bedtools_subtract(bedtools, isect, claimed, exclusive)
+
+        counts[source.label] = bed_length(exclusive)
+
+        if file_is_empty(exclusive):
+            continue
+
+        # Update claimed by merging the new exclusive region in, small files intersect runs
+        # once per category
+        new_claimed = workdir / f"{idx:03d}_claimed.bed"
+        combine_beds(bedtools, claimed, exclusive, new_claimed)
+        claimed = new_claimed
 
     return counts
 
 
-def process(combo, results_dir, sources, bedtools):
-    combo_dir = Path(results_dir) / combo
+def process(combo: str, results_dir: Path, sources: list[AnnotationSource], bedtools: str):
+    combo_dir = results_dir / combo
     filtered = combo_dir / "filtered.csv"
 
+    if not filtered.exists():
+        raise SystemExit(f"[ERROR] Missing file: {filtered}")
+
     rows = read_filtered_csv(filtered)
-    library_intervals = read_rows_as_intervals(rows)
-    library_total = interval_dict_length(library_intervals)
 
-    strand_multiplier = 2
-    effective_total = library_total * strand_multiplier
+    with tempfile.TemporaryDirectory() as td_str:
+        td = Path(td_str)
 
-    # Bed file is kept for compatibility/debugging.
-    with tempfile.TemporaryDirectory(dir=combo_dir) as td:
-        td = Path(td)
-        bed = td / "filtered.bed"
-        write_filtered_bed(rows, bed)
-
-        # Count bases uniquely inside GFF and TE namespaces separately.
-        # This means overlaps inside each namespace are never double-counted.
-        gff_sources = [s for s in sources if s.label.startswith("gff:")]
-        te_sources = [s for s in sources if s.label.startswith("te:")]
-
-        counts = {}
-        counts.update(count_unique_category_bases(library_intervals, gff_sources, strand_multiplier))
-        counts.update(count_unique_category_bases(library_intervals, te_sources, strand_multiplier))
+        library_bed, library_total = build_library_bed(rows, td, bedtools)
+        counts = count_unique_category_bases(bedtools, library_bed, sources, td)
 
     out = combo_dir / "annotation_summary.csv"
     with open(out, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["category", "bases_overlapping", "pct_of_library"])
+        w.writerow(["total_filtered_bases", library_total, "100.00" if library_total else "0.00"])
 
-        w.writerow(["total_filtered_bases", effective_total, "100.00" if effective_total else "0.00"])
-
-        for k, v in sorted(counts.items()):
-            pct = (v / effective_total * 100) if effective_total else 0
-            w.writerow([k, v, f"{pct:.2f}"])
+        for label, value in counts.items():
+            pct = (value / library_total * 100) if library_total else 0.0
+            w.writerow([label, value, f"{pct:.2f}"])
 
     return combo, str(out)
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--workdir", required=True)
     ap.add_argument("--te")
     ap.add_argument("--annotation")
     ap.add_argument("--parallel", type=int, default=4)
     args = ap.parse_args()
+
+    if not args.annotation and not args.te:
+        raise SystemExit("[ERROR] At least one of --annotation or --te must be provided")
 
     workdir = Path(args.workdir)
     results = workdir / "results"
@@ -412,13 +416,14 @@ def main():
     cache = results / "_annotation_cache"
     cache.mkdir(exist_ok=True)
 
-    sources = []
+    sources: list[AnnotationSource] = []
 
+    # GFF first, then TE.
     if args.annotation:
-        sources += build_gff_sources(Path(args.annotation), cache)
+        sources.extend(build_gff_sources(Path(args.annotation), cache, bedtools))
 
     if args.te:
-        sources += build_te_sources(Path(args.te), cache)
+        sources.extend(build_te_sources(Path(args.te), cache, bedtools))
 
     print(f"[INFO] {len(sources)} annotation categories")
 
@@ -426,8 +431,8 @@ def main():
 
     with ProcessPoolExecutor(max_workers=args.parallel) as ex:
         futures = [
-            ex.submit(process, c, results, sources, bedtools)
-            for c in combos
+            ex.submit(process, combo, results, sources, bedtools)
+            for combo in combos
         ]
 
         for f in as_completed(futures):
