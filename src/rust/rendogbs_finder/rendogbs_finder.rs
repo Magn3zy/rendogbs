@@ -112,7 +112,7 @@ fn main() {
         search_threads
     );
 
-    let (tx, rx) = mpsc::sync_channel::<Hit>(65536);
+    let (tx, rx) = mpsc::channel::<Hit>();
 
     let out_dir = cli.out_dir.clone();
     let enzyme_names: Vec<String> = enzymes.iter().map(|e| e.name.clone()).collect();
