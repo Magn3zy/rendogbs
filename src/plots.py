@@ -50,6 +50,10 @@ def discover_combos(results_dir):
             combos.append(entry.name)
     return combos
 
+# return path to a file inside a combination results directory
+def combo_file(results_dir, combo, filename):
+    return os.path.join(results_dir, combo, filename)
+
 
 def read_csv_rows(path):
     if not os.path.isfile(path):
@@ -90,7 +94,7 @@ def read_contig_lengths_txt(results_dir):
     path = os.path.join(results_dir, "contig_lengths.txt")
     rows = []
     with open(path) as fh:
-        next(fh)  # preskoceni hlavicky
+        next(fh)
         for line in fh:
             parts = line.rstrip().split("\t")
             if len(parts) == 2:
@@ -116,7 +120,7 @@ def plot_heatmap(results_dir, combos, plots_dir):
     mat = np.zeros((len(combos), n_bins), dtype=np.int64)
 
     for i, combo in enumerate(combos):
-        rows = read_csv_rows(os.path.join(results_dir, combo, "fragments.csv"))
+        rows = read_csv_rows(combo_file(results_dir, combo, "fragments.csv"))
         lengths = np.array([int(r["fragment_length"]) for r in rows] or [0],
                            dtype=np.int64)
         clipped = np.minimum(lengths, max_len)
@@ -165,7 +169,7 @@ def plot_chrom_distribution(results_dir, combos, plots_dir, n_chroms):
 
     mat = np.zeros((len(combos), n_c), dtype=np.int64)
     for i, combo in enumerate(combos):
-        rows = read_csv_rows(os.path.join(results_dir, combo, "filtered.csv"))
+        rows = read_csv_rows(combo_file(results_dir, combo, "filtered.csv"))
         for r in rows:
             if r["accession"] in chrom_idx:
                 mat[i, chrom_idx[r["accession"]]] += 1
@@ -235,7 +239,7 @@ def plot_gc_distribution(results_dir, combos, plots_dir):
 
     for combo in combos:
         gc = read_gc_metrics_csv(
-            os.path.join(results_dir, combo, "gc_metrics.csv"))
+            combo_file(results_dir, combo, "gc_metrics.csv"))
         if not gc or gc.get("gc_mean_pct") == "n/a":
             continue
         try:
@@ -284,7 +288,7 @@ def plot_annotation_coverage(results_dir, combos, plots_dir):
 
     for c in combos:
         ann = read_annotation_summary_csv(
-            os.path.join(results_dir, c, "annotation_summary.csv"))
+            combo_file(results_dir, c, "annotation_summary.csv"))
         if not ann:
             continue
         data[c] = ann
@@ -317,7 +321,6 @@ def plot_annotation_coverage(results_dir, combos, plots_dir):
         squeeze=False,
         gridspec_kw={"wspace": 0.02},
     ) 
-    fig.tight_layout()  
     axes = axes[0]
 
     def draw_stacked(ax, cats, colors, title):
@@ -390,7 +393,7 @@ def plot_size_distributions(results_dir, combos, plots_dir, size_low, size_high)
 
     for i, combo in enumerate(combos):
         dist = read_distribution_csv(
-            os.path.join(results_dir, combo, "distribution.csv"))
+            combo_file(results_dir, combo, "distribution.csv"))
         vals = [dist.get(l, 0) for l in std_labels]
         ax.plot(x_pos, vals, marker="o", markersize=4, linewidth=1.5,
                 color=colours[i % len(colours)], label=combo, alpha=0.85)
