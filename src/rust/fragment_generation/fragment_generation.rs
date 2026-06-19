@@ -1,6 +1,7 @@
 use std::{
+    collections::HashMap,
     fs,
-    path::{PathBuf, Path},
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -29,35 +30,6 @@ struct Fragment {
     fragment_length: i64,
 }
 
-#[derive(Clone, Debug)]
-struct SizeRange {
-    low:  i64,
-    high: i64,
-}
-
-fn parse_size_range(s: &str) -> Result<SizeRange, String> {
-    let (low_str, high_str) = s
-        .split_once('-')
-        .ok_or_else(|| format!("--size must be LOW-HIGH, e.g. 150-350, you wrote: '{}'", s))?;
-
-    let low: i64 = low_str
-        .parse()
-        .map_err(|_| format!("Invalid number: {}", low_str))?;
-
-    let high: i64 = high_str
-        .parse()
-        .map_err(|_| format!("Invalid number: {}", high_str))?;
-
-    if low > high {
-        return Err(format!(
-            "LOW ({}) must be lower than HIGH ({})",
-            low, high
-        ));
-    }
-
-    Ok(SizeRange { low, high })
-}
-
 #[derive(Parser)]
 #[command(name = "fragment_generation")]
 struct Cli {
@@ -69,17 +41,13 @@ struct Cli {
 
     #[arg(long, short = 'p', default_value_t = 2)]
     parallel: usize,
-
-    #[arg(long, value_parser = parse_size_range)]
-    size: SizeRange,
 }
 
-// load cuts_clean.csv (accession, cut_position, enzyme)
-fn load_cuts_clean(path: &Path) -> Vec<Cut> {
+fn load_cuts(path: &Path) -> Vec<Cut> {
     let mut rdr = ReaderBuilder::new()
         .has_headers(true)
         .from_path(path)
-        .unwrap_or_else(|_| panic!("Cannot open cuts_clean CSV: {:?}", path));
+        .unwrap_or_else(|_| panic!("Cannot open cuts CSV: {:?}", path));
 
     rdr.records()
         .filter_map(|r| {
@@ -116,29 +84,39 @@ fn load_combinations(path: &Path) -> Vec<Combination> {
         .collect()
 }
 
-// Cuts order: (accession + pos) — iter: [i, i+1]
+fn build_cuts_cache(out_dir: &Path, combos: &[Combination]) -> HashMap<String, Vec<Cut>> {
+    let mut cache = HashMap::with_capacity(combos.len());
+
+    for combo in combos {
+        let key = format!("{}_{}", combo.enzyme_a, combo.enzyme_b);
+        let cuts_path = out_dir.join(&key).join("cuts.csv");
+        assert!(cuts_path.exists(), "Missing cuts.csv: {:?}", cuts_path);
+
+        cache.insert(key, load_cuts(&cuts_path));
+    }
+
+    cache
+}
+
 fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
-    let mut fragments: Vec<Fragment> = Vec::new();
+    let mut fragments = Vec::new();
 
     for window in cuts.windows(2) {
         let a = &window[0];
         let b = &window[1];
 
-        // skip if different accession
         if a.accession != b.accession {
             continue;
         }
-
-        // skip if same enzyme
         if a.enzyme == b.enzyme {
             continue;
         }
 
         fragments.push(Fragment {
-            accession:    a.accession.clone(),
-            start_pos:    a.pos,
-            start_enzyme: a.enzyme.clone(),
-            end_enzyme:   b.enzyme.clone(),
+            accession:       a.accession.clone(),
+            start_pos:       a.pos,
+            start_enzyme:    a.enzyme.clone(),
+            end_enzyme:      b.enzyme.clone(),
             fragment_length: b.pos - a.pos,
         });
     }
@@ -146,7 +124,6 @@ fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
     fragments
 }
 
-// write fragments.csv - one thread per combination
 fn write_fragments_csv(path: &Path, frags: &[Fragment]) {
     let mut out = String::with_capacity(frags.len() * 64);
     out.push_str("accession,start_pos,start_enzyme,end_enzyme,fragment_length\n");
@@ -159,47 +136,22 @@ fn write_fragments_csv(path: &Path, frags: &[Fragment]) {
     fs::write(path, &out).unwrap_or_else(|_| panic!("Cannot write {:?}", path));
 }
 
-// one combo processing: READ-ONLY - results/<ea>_<eb>/cuts_clean.csv, WRITE - results/<ea>_<eb>/fragments.csv/filtered.csv
 fn process_combo(
-    combo:   &Combination,
-    out_dir: &Path,
-    size:    &SizeRange,
+    combo:      &Combination,
+    cuts_cache: &HashMap<String, Vec<Cut>>,
+    out_dir:    &Path,
 ) {
-    let ea = &combo.enzyme_a;
-    let eb = &combo.enzyme_b;
+    let key = format!("{}_{}", combo.enzyme_a, combo.enzyme_b);
 
-    let combo_dir = out_dir.join(format!("{}_{}", ea, eb));
-    let cuts_clean_path = combo_dir.join("cuts.csv");
+    let cuts = cuts_cache
+        .get(&key)
+        .unwrap_or_else(|| panic!("Missing combo in cache: {}", key));
 
-    assert!(
-        cuts_clean_path.exists(),
-        "Missing cuts_clean.csv: {:?}",
-        cuts_clean_path
-    );
+    let fragments = find_fragments(cuts);
 
-    // read cuts_clean.csv
-    let cuts = load_cuts_clean(&cuts_clean_path);
+    write_fragments_csv(&out_dir.join(&key).join("fragments.csv"), &fragments);
 
-    // lenght of all fragments
-    let all = find_fragments(&cuts);
-    let all_count = all.len();
-
-    // filter by size range
-    let filtered: Vec<Fragment> = all
-        .iter()
-        .filter(|f| f.fragment_length >= size.low && f.fragment_length <= size.high)
-        .cloned()
-        .collect();
-    let filtered_count = filtered.len();
-
-    // write csv fragments.csv a filtered.csv into results/<ea>_<eb>/ per thread
-    write_fragments_csv(&combo_dir.join("fragments.csv"), &all);
-    write_fragments_csv(&combo_dir.join("filtered.csv"), &filtered);
-
-    println!(
-        "[OK] {}_{} -> all: {}, filtered: {}",
-        ea, eb, all_count, filtered_count
-    );
+    println!("[OK] {} -> fragments: {}", key, fragments.len());
 }
 
 fn main() {
@@ -214,13 +166,11 @@ fn main() {
 
     println!("[INFO] combinations: {}", combos.len());
     println!("[INFO] threads:      {}", cli.parallel);
-    println!("[INFO] size window:  {}-{}", cli.size.low, cli.size.high);
 
-    let out_dir = Arc::new(cli.out_dir);
-    let size    = Arc::new(cli.size);
+    let cuts_cache = Arc::new(build_cuts_cache(&cli.out_dir, &combos));
 
     combos.par_iter().for_each(|combo| {
-        process_combo(combo, &out_dir, &size);
+        process_combo(combo, &cuts_cache, &cli.out_dir);
     });
 
     println!("[OK] done.");
