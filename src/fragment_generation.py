@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""
-fragment_generation.py — ddRAD fragment caller.
-Batch mode pro více kombinací:
-   python3 fragment_generation.py \
-     --workdir run1 \
-     --size 150-350 \
-     --parallel 3
-"""
+# fragment_generation.py
+# Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+#
+# Library fragment generation - with cluster and hotspot competition logic
+# Output: fillered.csv
 
 from __future__ import annotations
 import argparse
@@ -108,16 +105,16 @@ def intervals_overlap(
     s2: np.ndarray | int,
     e2: np.ndarray | int,
 ) -> np.ndarray | bool:
-    return np.maximum(s1, s2) < np.minimum(e1, e2) # sdili aspon 1bp ne dotyk hran
+    return np.maximum(s1, s2) < np.minimum(e1, e2)  # atleast 1bp overlap not edges
 
 def size_ok(
     fragment_length: np.ndarray | int,
     min_size: int,
     max_size: int,
 ) -> np.ndarray | bool:
-    return (fragment_length >= min_size) & (fragment_length <= max_size) #true pokud lezi v uzavrenem intervalu min and max size
+    return (fragment_length >= min_size) & (fragment_length <= max_size)  #true if in closed interval mix and max size arg
 
-# vrati zacatek a konec bloku pro serazena data dle accession
+# start and end indices of blocks of same accessions
 def accession_blocks(
     accessions: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -131,7 +128,7 @@ def accession_blocks(
     ends    = np.concatenate((changes, [n]))
     return starts.astype(np.int64), ends.astype(np.int64)
 
-#blok processing per-accession
+#block processing per-accession
 def process_accession_block(
     accession: str,
     pos: np.ndarray,
@@ -144,10 +141,17 @@ def process_accession_block(
     list[tuple[str, int, str, str, int]],   # filtered fragments
     list[tuple[int, int]],                  # cluster spans (local indices)
 ]:
-    #pro jeden accession blok - detekce overlap clusteru, emitované fragmenty mimo clustery, emitované boundary kandidáty pro clustery
-    # vraci cluster spany jako lokální indexy [start, end] inclusive, (filtered_fragments, clusters)
+    # for one accession block
+    # detection of overlaps clusters/hotspots
+    # emits fragments outside of clusters
+    # emits boundary candidates for clusters
+    # for one accession block
+    # detects overlap clusters/hotspots
+    # emits fragments outside clusters
+    # for each cluster boundary tries up to 2 innermost cuts per side,
+    # writes only the first that passes size filter (no competition)
     filtered: list[tuple[str, int, str, str, int]] = []
-    clusters: list[tuple[int, int]]                = []
+    clusters: list[tuple[int, int]] = []
 
     n = len(pos)
     if n < 2:
@@ -162,15 +166,15 @@ def process_accession_block(
         changes = np.diff(padded)
 
         run_starts = np.flatnonzero(changes ==  1)
-        run_ends   = np.flatnonzero(changes == -1) - 1  # v souřadnicích overlap_adj
+        run_ends   = np.flatnonzero(changes == -1) - 1  # in coordinates of overlap_adj
 
         for rs, re in zip(run_starts, run_ends):
             cs = int(rs)
-            ce = int(re + 1)  # převod z overlap runu na row span
+            ce = int(re + 1)  # from overlap run to row span
             clusters.append((cs, ce))
             in_cluster[cs : ce + 1] = True
 
-    # Normální fragmenty mimo clustery
+    # normal fragments besides clusters/hotspots
     normal_mask = (
         (~in_cluster[:-1]) &
         (~in_cluster[1:])  &
@@ -185,23 +189,27 @@ def process_accession_block(
                 j = i + 1
                 filtered.append((accession, int(pos[i]), str(enz[i]), str(enz[j]), int(frag_len[k])))
 
-    # Boundary fragmenty pro každý cluster
+    # borderline cluster fragments
     for cs, ce in clusters:
-        # předchozí outside je poslední v clusteru
-        if cs - 1 >= 0:
-            i, j = cs - 1, ce
+        # left borderline first that gets into library is written
+        for i, j in [(cs, cs + 1), (cs + 1, cs + 2)]:
+            if j > ce:
+                break  
             if enz[i] != enz[j]:
                 frag_len = int(pos[j] - pos[i])
                 if size_ok(frag_len, min_size, max_size):
                     filtered.append((accession, int(pos[i]), str(enz[i]), str(enz[j]), frag_len))
+                    break 
 
-        # první v clusteru je další outside
-        if ce + 1 < n:
-            i, j = cs, ce + 1
+        # right borderline first that gets into library is written
+        for i, j in [(ce - 1, ce), (ce - 2, ce - 1)]:
+            if i < cs:
+                break  
             if enz[i] != enz[j]:
                 frag_len = int(pos[j] - pos[i])
                 if size_ok(frag_len, min_size, max_size):
                     filtered.append((accession, int(pos[i]), str(enz[i]), str(enz[j]), frag_len))
+                    break  
 
     return filtered, clusters
 
@@ -217,7 +225,7 @@ def _fail(combo: str, error: str) -> dict:
         "error":     error,
     }
 
-# worker entry point - jeden cuts.csv, zapíše výstupy, vrátí summary dict
+# worker entry point - one cuts.csv, returns summary dict
 def process_job(
     job: dict,
     min_size: int,
@@ -368,7 +376,7 @@ def process_job(
         combo = job.get("combo", "unknown")
         return _fail(combo, f"Unexpected error: {e}")
 
-# kombinace z combinations.csv
+# combinations z combinations.csv
 def load_combinations(path: Path) -> list[tuple[str, str]]:
     
     df = pd.read_csv(path, dtype=str)
