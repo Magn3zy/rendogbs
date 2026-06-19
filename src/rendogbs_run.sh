@@ -165,7 +165,6 @@ while [ -n "$1" ] ; do
 	    ;;
 	--size)
 	    S4ARGS="$S4ARGS $1 $2"
-	    S5ARGS="$S5ARGS $1 $2"
 	    S6ARGS="$S6ARGS $1 $2"
 	    S9ARGS="$S9ARGS $1 $2"
 	    shift
