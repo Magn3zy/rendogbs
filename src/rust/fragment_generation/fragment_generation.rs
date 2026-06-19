@@ -1,3 +1,9 @@
+// fragment_generation.rs
+// Copyright (c) 2026 Eliška Korbová ORCID 0009-0004-1247-0808
+//
+// Fragment generation for statistics only, one combo per thread
+// Output: enzyme specific fragments.csv
+
 use std::{
     collections::HashMap,
     fs,
