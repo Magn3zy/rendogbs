@@ -1,0 +1,15 @@
+#citation:https://link.springer.com/article/10.1186/s12864-017-3765-8?#Sec2
+
+#randomly selected samples:
+fasterq-dump SRR5360104 SRR5360103 SRR5360101 SRR391280 SRR391278 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+fasterq-dump SRR5360088 SRR5360078 SRR5360070 SRR5360050  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+fasterq-dump SRR5360054 SRR5360061 SRR5360014 SRR5359996  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/035/136/125/GCA_035136125.1_Qrubra_687_v2.0/
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article
+sh rendogbs.sh --ref GCA_035136125.1_Qrubra_687_v2.0_genomic.fna.gz  --size 160-400 --combinations custom --combinations-file (MseI_EcoRI) --parallel 2 --annotation GCA_035136125.1_Qrubra_687_v2.0_genomic.gff.gz
