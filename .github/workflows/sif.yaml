@@ -15,3 +15,7 @@ jobs:
       - name: Test environment
         run: |
           set
+      - uses: actions/checkout@v4
+      - name: List repository
+        run: |
+          find
