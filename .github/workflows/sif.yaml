@@ -1,0 +1,17 @@
+name: Build Singularity/Apptainer Image
+
+on: 
+  push:
+    # only trigger on branches, not on tags
+    branches:
+      - '**'
+      - '!master'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Test environment
+        run: |
+          set
