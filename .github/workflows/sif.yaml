@@ -2,7 +2,6 @@ name: Build Singularity/Apptainer Image
 
 on: 
   push:
-    # only trigger on branches, not on tags
     branches:
       - '**'
       - '!master'
@@ -13,6 +12,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - name: List repository
+      - name: Install singularity
         run: |
-          make docker
+          apt install singularity-container
+      - name: Build the Image
+        run: |
+          make singularity
