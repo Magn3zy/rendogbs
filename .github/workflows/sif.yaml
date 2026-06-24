@@ -18,3 +18,8 @@ jobs:
       - name: Build the Image
         run: |
           make singularity
+      - name: Release the Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendogbs-v2.sif
+          path: ./rendogbs-v2.sif
