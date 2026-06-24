@@ -1,0 +1,12 @@
+#citation:https://www.nature.com/articles/s41598-021-85815-0#Sec2
+
+#randomly selected samples:
+fasterq-dump ERR11741092 ERR11741075 ERR11741116 ERR11741132 ERR11741115  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump ERR11741110 ERR11741153 ERR11741120 ERR11741148 ERR11741113  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/346/465/GCF_000346465.2_Prunus_persica_NCBIv2/
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article
+sh rendogbs.sh --ref  GCF_000346465.2_Prunus_persica_NCBIv2_genomic.fna.gz  --size 280-420 --combinations custom --combinations-file (PstI_MboI) --parallel 2 --annotation GCF_000346465.2_Prunus_persica_NCBIv2_genomic.gff.gz  --chroms 8
