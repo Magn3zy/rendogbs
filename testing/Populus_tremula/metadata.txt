@@ -1,0 +1,12 @@
+citation:https://www.nature.com/articles/s41598-017-05087-5
+
+#randomly selected samples:
+fasterq-dump SRR6249787	 SRR6249784	 SRR6249793	 SRR6249803 SRR6249791	  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump  SRR6249807  SRR6249865 SRR6249826	SRR6249905 SRR6249810	 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/964/106/015/GCA_964106015.1_ddPopTrem1.hap1.1/
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article not provided, based on other articles cited, we predicted lenght, and based on data analysis
+sh rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/pt.fna  --size 160-400 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/coms_pt.csv --parallel 2 --chroms 19 --workdir /home/raidfolder/rendogbs/pipeline_references/pt_rendogbs
