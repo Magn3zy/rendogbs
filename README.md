@@ -17,7 +17,7 @@ To build the Docker image locally, just type:
 make
 ```
 
-The build process builds a Docker image named `rendogbs-v1` locally as
+The build process builds a Docker image named `rendogbs-v2` locally as
 the default make target is `docker`. The image is built from supplied
 `Dockerfile` in the root of this repository.
 
@@ -27,7 +27,7 @@ To build a singularity image, use the `singularity` target:
 make singularity
 ```
 
-This creates the `rendogbs-v1.sif` file.
+This creates the `rendogbs-v2.sif` file.
 
 It is possible to build both Docker and singularity image by using the
 `all` target, however as the singularity image is built from the
@@ -60,7 +60,7 @@ sh rendogbs.sh --docker [ARGS]
 ```
 
 The wrapper script uses Docker by default. It is possible to make it
-run the singularity container `rendogbs-v1.sif` in current
+run the singularity container `rendogbs-v2.sif` in current
 directory. As the container is built in the root of this repository,
 the following suffices:
 
@@ -122,7 +122,7 @@ docker run \
   -v ./GCF_000001735.3_TAIR10_genomic.fna.gz:/home/rendogbs/GCF_000001735.3_TAIR10_genomic.fna.gz \
   -v ./run2:/home/rendogbs/run2 \
   --rm \
-  rendogbs-v1 \
+  rendogbs-v2 \
   --ref ./GCF_000001735.3_TAIR10_genomic.fna.gz \
   --workdir ./run2 \
   --parallel 5 \
@@ -141,7 +141,7 @@ valid executable:
 
 ```sh
 SINGULARITY_BIND=./run2:/home/rendogbs/run2,./data/GCF_000001735.3_TAIR10_genomic.fna.gz:/home/rendogbs/GCF_000001735.3_TAIR10_genomic.fna.gz \
-  ./rendogbs-v1.sif \
+  ./rendogbs-v2.sif \
     --ref ./GCF_000001735.3_TAIR10_genomic.fna.gz \
 	--workdir ./run2 \
 	--parallel 5 \
@@ -159,7 +159,7 @@ the bindings through the `-B` option:
 singularity run \
   -B ./run2:/home/rendogbs/run2 \
   -B ./data/GCF_000001735.3_TAIR10_genomic.fna.gz:/home/rendogbs/GCF_000001735.3_TAIR10_genomic.fna.gz \
-  ./rendogbs-v1.sif \
+  ./rendogbs-v2.sif \
   --ref ./GCF_000001735.3_TAIR10_genomic.fna.gz \
   --workdir ./run2 \
   --parallel 5 \
@@ -209,7 +209,7 @@ Architecture
 ------------
 
 Makefile
-containers/rendogbs-v1/Dockerfile - Docker image recipy
+containers/rendogbs-v2/Dockerfile - Docker image recipy
 containers/rendogbs-bedtools/Dockerfile - ...
 rendogbs.sh - outer wrapper script
 src/ - sources
@@ -227,7 +227,7 @@ This script validates the presence of mandatory arguments on the
 command-line and creates appropriate Docker volume mappings for any
 files and/or directories the pipeline needs.
 
-Then it runs the Docker image `rendogbs-v1` and passes all the
+Then it runs the Docker image `rendogbs-v2` and passes all the
 collected arguments to its entrypoint which is the inner wrapper
 script.
 

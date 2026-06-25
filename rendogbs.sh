@@ -26,7 +26,7 @@ exits successfully.  All output is written to <workdir>/results/.
 
 CONTAINER TYPE (default: --docker)
   --docker                  Run the docker container (default)
-  --singularity             Run the singularity container rendogbs-v1.sif in this
+  --singularity             Run the singularity container rendogbs-v2.sif in this
                             directory
   --image          <image>  Docker image name or singularity image file name.
 
