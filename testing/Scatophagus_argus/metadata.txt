@@ -1,0 +1,12 @@
+citation:https://pmc.ncbi.nlm.nih.gov/articles/PMC7126399/
+
+#randomly selected samples:
+fasterq-dump SRR10317252 SRR10317253 SRR10317264 SRR10317265 SRR10317268  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump  SRR10317295 SRR10317301 SRR10317314 SRR10317344 SRR10317300 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/020/382/885/GCF_020382885.2_fScaArg1.pri/
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, EcoRI_NlaIII
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/sa.fna  --size 260-500 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/coms_sa.csv --parallel 2 --chroms 24 --workdir /home/raidfolder/rendogbs/pipeline_references/sa_rendogbs
