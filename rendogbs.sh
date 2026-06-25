@@ -140,6 +140,7 @@ REQAMSK=$((1+2+4+8+32))
 
 # Default container is docker
 CCMD=`which docker`
+CTYPE=docker
 VMOPT=-v
 CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
 PBSWRAP=
@@ -157,6 +158,7 @@ while [ -n "$1" ] ; do
 	    ;;
 	--singularity)
 	    CCMD=`which singularity`
+	    CTYPE=singularity
 	    IMAGE="$sd/$IMGNAME.sif"
 	    VMOPT=-B
 	    CIDMAP=
@@ -169,6 +171,7 @@ while [ -n "$1" ] ; do
 	    ;;
 	--docker)
 	    CCMD=`which docker`
+	    CTYPE=docker
 	    IMAGE=$IMGNAME
 	    VMOPT=v
 	    CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
@@ -379,6 +382,11 @@ if [ $((ARGSMSK & 32)) -lt $((REQAMSK & 32)) ] ; then
 fi
 if [ $((ARGSMSK & REQAMSK)) -ne $REQAMSK ] ; then
     # Although usage is displayed above, this is kinda standard
+    echo "See --help for more information."
+    exit 1
+fi
+if [ -z "$CCMD" ] ; then
+    echo "$CTYPE: not found!"
     echo "See --help for more information."
     exit 1
 fi
