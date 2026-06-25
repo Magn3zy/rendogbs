@@ -1,7 +1,9 @@
-Predicted_fragments,6412
+metric,value,percent
+Predicted_fragments,6412,
 Matched,5681,88.60
 Unmatched,731,11.40
-Total_reads,2143426
+Total_reads,2143426,
+Total_PE_reads,2143426,
 Reads_on_predicted,1684723,78.60
 Reads_off_target,458703,21.40
 gc_bin_pct,matched_n,matched_pct_of_all_matched,unmatched_n,unmatched_pct_of_all_unmatched,total_n,recovery_rate_in_bin

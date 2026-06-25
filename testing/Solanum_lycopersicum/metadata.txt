@@ -1,0 +1,12 @@
+#citation:https://www.nature.com/articles/s41438-020-00353-6#Sec2
+
+#randomly selected samples:
+fasterq-dump  SRR11973064 SRR11973067 SRR11973072 SRR11973097 SRR11973113 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump SRR11973213  SRR11973218	SRR11973249	SRR11973255	SRR11973322	 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/036/512/215/GCF_036512215.1_SLM_r2.1/GCF_036512215.1_SLM_r2.1_genomic.fna.gz 
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article not provided, based on other articles and Pippin prep, MboI_SphI
+sh rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/sl.fna  --size 180-520 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_sl.csv --parallel 2 --chroms 12 --workdir /home/raidfolder/rendogbs/pipeline_references/sl_rendogbs
