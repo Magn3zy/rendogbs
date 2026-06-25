@@ -1,9 +1,16 @@
 #!/bin/sh
 #
+# rendogbs_user.sh
+#
+# Copyright (c) 2026
+# Eliška Korbová ORCID 0009-0004-1247-0808
+# Dominik Pantůček ORCID 0009-0000-3509-0905
+#
 # Requires only POSIX.1 shell (busybox sh, dash ...)
 #
-# Starts as root, runs scripts as unprivileged user given by LUID/LGID
-# environment variables.
+# Runs the script under current user. See rendogbs_user.sh for
+# handling root/non-root setup in docker and singularity/apptainer
+# containers.
 #
 
 # Configuration
