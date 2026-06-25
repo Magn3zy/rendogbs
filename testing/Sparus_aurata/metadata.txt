@@ -1,0 +1,12 @@
+citation:SRA project:PRJNA643702
+
+#randomly selected samples:
+fasterq-dump  SRR12135586 SRR12135386 SRR12135382 SRR12135390 SRR12135405 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump SRR12135412 SRR12135492 SRR12135500 SRR12135524 SRR12135572  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/900/880/675/GCF_900880675.2_fSpaAur1.2/GCF_900880675.2_fSpaAur1.2_genomic.fna.gz
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, SbfI_SphI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/spau.fna  --size 300-610 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_spau.csv --parallel 2 --chroms 24 --workdir /home/raidfolder/rendogbs/pipeline_references/spau_rendogbs
