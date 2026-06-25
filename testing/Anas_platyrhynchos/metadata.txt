@@ -1,0 +1,12 @@
+#citation:https://www.nature.com/articles/s42003-023-05170-w#MOESM1
+
+#randomly selected samples:
+fasterq-dump SRR24862224 SRR24862958 SRR24862621 SRR24862197 SRR24862221 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump SRR24836794 SRR24836806 SRR24836820 SRR24836831 SRR24837080 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/047/663/525/GCF_047663525.1_IASCAAS_PekinDuck_T2T/GCF_047663525.1_IASCAAS_PekinDuck_T2T_genomic.fna.gz
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, SbfI_EcoRI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/ap.fna   --size 20-380 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_ap.csv --parallel 2  --chroms 41 --workdir /home/raidfolder/rendogbs/pipeline_references/ap_rendogbs
