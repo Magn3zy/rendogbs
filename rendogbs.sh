@@ -26,9 +26,12 @@ exits successfully.  All output is written to <workdir>/results/.
 
 CONTAINER TYPE (default: --docker)
   --docker                  Run the docker container (default)
-  --singularity             Run the singularity container rendogbs-v2.sif in this
+  --singularity             Run the singularity container rendogbs-v2.sif in
+                            this directory
+  --apptainer               Run the apptainer container rendogbs-v2.sif in this
                             directory
-  --image          <image>  Docker image name or singularity image file name.
+  --image          <image>  Docker image name or singularity/apptainer image
+                            file name.
 
 PBS SUPPORT
   --qsub                    Do not run directly but submit as PBS job using qsub
@@ -39,7 +42,8 @@ PBS SUPPORT
 REQUIRED
   --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
   --workdir        <dir>    Working directory (created if absent)
-  --parallel       <int>    Combinations processed in parallel per batch, don't more threads than combinations
+  --parallel       <int>    Combinations processed in parallel per batch, don't
+                            more threads than combinations
   --size           <range>  Fragment size window, e.g. 200-400 (both inclusive).
                             Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
                             always reported; filtered.csv retains only fragments
@@ -49,8 +53,8 @@ COMBINATIONS  (optional, default: fast)
   --combinations   fast     23 built-in common ddRAD/GBS pairs (default)
                    custom   read from --combinations-file
   --combinations-file <f>   CSV for custom mode (header line: enzyme_a,enzyme_b),
-                            please reffer to --enzymes to choose enzymes from the list 
-                            of 171 available enzymes.
+                            please reffer to --enzymes to choose enzymes from
+                            the list of 171 available enzymes.
 
 ANNOTATION  (optional)
   --annotation     <file>   GFF3/GFF/GTF gene annotation
@@ -159,6 +163,14 @@ while [ -n "$1" ] ; do
 	--singularity)
 	    CCMD=`which singularity`
 	    CTYPE=singularity
+	    IMAGE="$sd/$IMGNAME.sif"
+	    VMOPT=-B
+	    CIDMAP=
+	    shift
+	    ;;
+	--apptainer)
+	    CCMD=`which apptainer`
+	    CTYPE=apptainer
 	    IMAGE="$sd/$IMGNAME.sif"
 	    VMOPT=-B
 	    CIDMAP=

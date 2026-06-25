@@ -8,6 +8,9 @@
 # Configuration
 IMGNAME=rendogbs-v2
 
+# Auto-detect apptainer/singularity
+SIFTOOL=$(shell which apptainer || which singularity)
+
 ################################################################
 # User Targets
 
@@ -21,12 +24,12 @@ docker: containers/.docker-rendogbs-built
 
 # Build everything at once
 .PHONY: all
-all: docker singularity
+all: docker sif
 
-# Build only the singularity image (actually it builds the Docker
-# image as well as it is built from it).
-.PHONY: singularity
-singularity: $(IMGNAME).sif
+# Build only the singularity/apptainer image (actually it builds the
+# Docker image as well as it is built from it).
+.PHONY: sif
+sif: $(IMGNAME).sif
 
 # Manually build only the bedtools Docker image
 .PHONY: docker-bedtools
@@ -80,7 +83,7 @@ distclean: clean
 # Singularity Image
 
 $(IMGNAME).sif: containers/.docker-rendogbs-built
-	singularity build -F $@ docker-daemon://$(IMGNAME):latest
+	$(SIFTOOL) build -F $@ docker-daemon://$(IMGNAME):latest
 
 ################################################################
 # Main Docker Image
