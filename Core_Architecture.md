@@ -20,7 +20,7 @@ First step of the rendogbs pipeline. Validates and resolves enzyme combinations
 before any computationally expensive steps run. All heavy work (cut site finding,
 fragment generation) happens downstream, exits early on any invalid input.
 
-## Why this script exists as a separate step
+## Separate validation step
 Rust binaries downstream (`rendogbs_finder`, `cut_merge`, `fragment_generation`)
 expect clean, validated input. Rather than adding validation logic into each binary,
 all input resolution happens here once. If something is wrong with the
@@ -192,7 +192,7 @@ independent so no synchronization is needed between workers.
 | `cut_position` | Absolute cut position on the forward strand |
 | `enzyme` | Enzyme name — used downstream to distinguish which end of a fragment belongs to which enzyme |
 
-## Why BufWriter
+## BufWriter
 Each `cuts.csv` is written row by row. Without buffering this would be one syscall
 per row — on a large genome with millions of cut sites this would be the bottleneck.
 `BufWriter` accumulates rows in an 8 KB kernel buffer (default value) and flushes 
@@ -275,11 +275,17 @@ the predicted library with full biological logic applied.
 
 **1) Hotspot** - defined as overlap of 2 cut sites 
 **Simplified scheme of cut sites**
-A ------- B/A ------- B or A ------- A/B ------- B
+
+A ------- B/A ------- B 
+
+A ------- A/B ------- B
 
 **1) Clusters** - defined as overlap of multiple cut sites
+
 **Simplified scheme of cut sites**
+
 A ------- ABABABABABA ------- B 
+
 A ------- AAAAAABBBBB ------- B
 
 > **Note:** Given logic used for emiting possible fragments derived from these
@@ -345,9 +351,13 @@ at which position. However, discarding the entire cluster would silently lose
 fragments that may be real library members. Instead:
 
 **1)** All cuts inside a cluster are flagged as `uncertain_cuts`
+
 **2)** The boundary of the cluster is examined for fragments that pass the size filter
+
 **3)** Up to 2 outermost cuts per side of the cluster boundary are tried
+
 **4)** The first candidate that passes the size filter is written, then the search stops
+
 **5)** This is conservative: one fragment per cluster boundary side maximum
 
 This approach is transparent — the user sees exactly how many uncertain cuts and
