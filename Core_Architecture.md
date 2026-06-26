@@ -15,21 +15,15 @@
 
 # combinations_processing.py 
 
-## Purpose
+## Summary
 First step of the rendogbs pipeline. Validates and resolves enzyme combinations
-before any computationally expensive steps run. All heavy work (cut site finding,
-fragment generation) happens downstream, exits early on any invalid input.
-
-## Separate validation step
-Rust binaries downstream (`rendogbs_finder`, `cut_merge`, `fragment_generation`)
-expect clean, validated input. Rather than adding validation logic into each binary,
-all input resolution happens here once. If something is wrong with the
-user's combinations, the pipeline fails immediately with a clear message.
+before any computationally expensive steps run. Exits early on any invalid input
+with a clear message.
 
 ## Arguments
 | Argument | Required | Description |
 |---|---|---|
-| `--workdir` | yes | Root working directory. `results/` is created here. |
+| `--workdir` | yes | Root working directory. `results/` is created. |
 | `--combinations` | no (default: `fast`) | `fast` uses the 23 predefined combinations. `custom` reads from `--combinations-file`. |
 | `--combinations-file` | only if `--combinations custom` | Path to user-supplied CSV with two columns: `enzyme_a`, `enzyme_b`. |
 
@@ -37,7 +31,7 @@ user's combinations, the pipeline fails immediately with a clear message.
 
 ## Input files
 Both files are bundled with the pipeline (in `scripts/`) and copied automatically
-by the wrapper — the user never needs to handle them manually:
+by the wrapper:
 
 - `enzymes.csv` — master enzyme database with expanded IUPAC sequences and cut offsets.
   Contains all supported enzymes (~171 entries) for nonpalindromic ones contains reverse complement.
@@ -64,14 +58,12 @@ The pipeline exits only if zero valid combinations remain after filtering.
 
 ## Fast combinations
 The 23 hardcoded `FAST_COMBOS` represent commonly used ddRAD/GBS enzyme pairs
-from the literature. They are provided as a convenience for users who do not have
-a specific combination in mind. Users who want to explore other combinations use
-`--combinations custom` we support 14 040 combinations.
+from the literature. They are provided as a convenience. Users who want to 
+explore other combinations use `--combinations custom` we support 14 040 combinations.
 
 ## Output files (written to `<workdir>/results/`)
 - `enzymes_run.csv` — subset of `enzymes.csv` containing only the unique enzymes
-  needed for this run. Passed to `rendogbs_finder` (Rust) so it does not load the
-  full database unnecessarily.
+  needed for this run. Passed to `rendogbs_finder`.
 - `combinations.csv` — validated pairs in `enzyme_a,enzyme_b` format. Used by
   all downstream scripts and binaries as the authoritative list of what to process.
 
@@ -79,12 +71,10 @@ a specific combination in mind. Users who want to explore other combinations use
 
 # rendogbs_finder (Rust binary)
 
-## Purpose
+## Summary
 Finds all recognition site cut positions for each enzyme across the entire reference
 genome. Output is one CSV per enzyme containing every cut site position. This is the
-most computationally intensive step in the pipeline — all design decisions here
-prioritize throughput on large genomes.
-
+most computationally intensive step in the pipeline.
 
 ## Arguments
 | Argument | Required | Description |
@@ -92,17 +82,16 @@ prioritize throughput on large genomes.
 | `--enzymes-run` | yes | Path to `enzymes_run.csv` produced by `combinations_processing.py` |
 | `--ref` / `-r` | yes | Reference genome FASTA (plain or gzipped) |
 | `--out-dir` / `-o` | yes | Output directory for per-enzyme CSV files (`results/cuts/`) |
-| `--parallel` / `-p` | no (default: 2) | Total threads. One is always reserved for the writer thread, rest search. |
+| `--parallel` / `-p` | no (default: 2) | Total threads. One for the writer thread, rest search. |
 
 > **Note:** All required arguments are passed automatically by the shell wrapper.
 
 ## Forward strand only
-Recognition sites of restriction enzymes used in ddRAD/GBS are palindromic —
+Recognition sites of restriction enzymes used in ddRAD/GBS are mostly palindromic —
 the sequence on the reverse strand is the reverse complement of the forward strand
 and identical in terms of cut position. Scanning only the forward strand finds
 all cut sites without duplication and halves the memory and compute requirements.
-This is a deliberate biological simplification, not an oversight. For 6 
-nonpalindromic enzymes we use reverse complement from expanded `enzymes.csv`.
+For 6 nonpalindromic enzymes we use reverse complement from expanded `enzymes.csv`.
 
 ## Aho-Corasick multi-pattern search
 All enzyme recognition sequences are loaded as patterns into a single Aho-Corasick
@@ -118,9 +107,11 @@ The binary uses `N-1` Rayon threads for parallel genome search (one contig per t
 and one dedicated OS thread for writing results to disk.
 
 **Dedicated writer thread:**
-- Disk I/O is slow and would stall search threads if done inline
+
 - Multiple search threads writing to the same file simultaneously would require locking
+  
 - The writer owns all file handles exclusively — no synchronization needed on the write side
+  
 - Hits are sent via `mpsc::channel` (multi-producer single-consumer) which is lock-free
   on the send side
 
@@ -141,14 +132,14 @@ One CSV per enzyme: `<enzyme_name>.csv`
 ## Post-write integrity check
 After all hits are written, the writer thread counts newlines in each output file
 and compares against the number of hits sent. A mismatch indicates a write error
-or filesystem issue and is reported explicitly. This check exists because silent
-data loss during buffered I/O would be problematic.
+or filesystem issue and is reported explicitly. This check exists to prevent silent
+data loss.
 
 ---
 
 # cut_merge (Rust binary)
 
-## Purpose
+## Summary
 Merges per-enzyme cut site CSVs (output of `rendogbs_finder`) into per-combination
 `cuts.csv` files. Each output file contains the cut sites of both enzymes for one
 combination, sorted by accession and position, ready for fragment generation.
@@ -159,14 +150,13 @@ combination, sorted by accession and position, ready for fragment generation.
 |---|---|---|
 | `--cuts-dir` | yes | Directory containing per-enzyme CSVs from `rendogbs_finder` (`results/cuts/`) |
 | `--combinations` | yes | `combinations.csv` produced by `combinations_processing.py` |
-| `--out-dir` | yes | Root output directory — one subdir per combination is created here |
+| `--out-dir` | yes | Root output directory — one subdir per combination created |
 | `--parallel` / `-p` | no (default: 2) | Number of Rayon threads for parallel combination processing |
 
 > **Note:** All required arguments are passed automatically by the shell wrapper.
 
 ## Enzyme cache: load once, use for all combinations
-Rather than reading each enzyme CSV once per combination that uses it, the binary
-builds a `cuts_cache` upfront — a `HashMap<enzyme_name, Vec<Cut>>` that loads
+Binary builds a `cuts_cache` upfront — a `HashMap<enzyme_name, Vec<Cut>>` that loads
 each unique enzyme file exactly once. This matters when the same enzyme appears
 in many combinations (e.g. `MseI` appears in 8 of the 23 fast combinations) —
 without the cache, `MseI` would be read from disk 8 times.
@@ -189,34 +179,22 @@ independent so no synchronization is needed between workers.
 | Column | Description |
 |---|---|
 | `accession` | Contig/chromosome name |
-| `cut_position` | Absolute cut position on the forward strand |
-| `enzyme` | Enzyme name — used downstream to distinguish which end of a fragment belongs to which enzyme |
+| `cut_position` | Cut position on the forward strand |
+| `enzyme` | Enzyme name |
 
 ## BufWriter
-Each `cuts.csv` is written row by row. Without buffering this would be one syscall
-per row — on a large genome with millions of cut sites this would be the bottleneck.
-`BufWriter` accumulates rows in an 8 KB kernel buffer (default value) and flushes 
-in larger chunks.
+Each `cuts.csv` is written row by row. `BufWriter` accumulates rows 
+in an 8 KB kernel buffer (default value) and flushes in larger chunks.
 
 ---
 
 # fragment_generation (Rust binary)
 
-## Purpose
+## Summary
 Generates all adjacent different-enzyme fragment pairs from merged cut sites for
 each combination. Output is `fragments.csv` — the complete unfiltered set used
 exclusively for **cut statistics and visualisation**. No library selection logic
-is applied here — this binary has no knowledge of size windows, clusters, or
-adapter compatibility beyond the basic rule that both ends must be different enzymes.
-
-## What this binary is NOT
-This binary is not part of the library prediction logic. It does not interact with
-`fragment_generation.py`. The two generate different outputs from the same `cuts.csv`:
-
-- `fragment_generation` (Rust) → `fragments.csv` — all fragments, for graphs cut statistics,
-  total cut counts and raw fragment length distributions
-- `fragment_generation.py` (Python) → `filtered.csv` — library-selected fragments
-  after size filtering and cluster handling, for library size prediction
+is applied here, both ends must be different enzymes.
 
 ## Arguments
 | Argument | Required | Description |
@@ -232,11 +210,11 @@ The input `cuts.csv` is already sorted by `(accession, position)` — guaranteed
 `cut_merge`. Fragment generation is a single pass with `windows(2)`:
 
 For each adjacent pair of cuts:
-- **Different accession** → skip (cuts on different contigs, no fragment between them)
-- **Same enzyme** → skip (same adapter on both ends, not relevant for cut statistics)
+- **Different accession** → skip (cuts on different contigs)
+- **Same enzyme** → skip
 - **Different enzyme, same accession** → emit fragment
 
-Intentionally no further logic — this is a brute-force enumeration of all cut pairs.
+Brute-force enumeration of all cut pairs.
 
 ## Arc for the cuts cache
 The cuts cache (`HashMap<combo_key, Vec<Cut>>`) is built once in the main thread
@@ -260,20 +238,16 @@ per combination — avoids repeated syscalls for what is a bulk write.
 
 # fragment_generation.py 
 
-## Purpose
+## Summary
 Core library prediction script. Takes merged cut sites for each combination and
-produces the predicted ddRAD/GBS library — fragments that would actually be
-selectively enriched given the user-specified size window. This is where the
-biological complexity lives: overlap detection, cluster/hotspot handling, uncertain
-cut tracking, and size filtering.
-
-This script is explicitly separate from the Rust `fragment_generation` binary —
-the Rust binary produces raw fragment counts for statistics, this script produces
-the predicted library with full biological logic applied.
+produces the predicted ddRAD/GBS library — fragments that would be
+selectively enriched given the user-specified size window. Mainly overlap detection, 
+cluster/hotspot handling, uncertain cut tracking, and size filtering.
 
 ## Our definition of clusters
 
 **1) Hotspot** - defined as overlap of 2 cut sites 
+
 **Simplified scheme of cut sites**
 
 A ------- B/A ------- B 
@@ -294,30 +268,23 @@ overlaping recognition sites, we use the same logic for hotspots and clusters.
 ## Arguments
 | Argument | Required | Description |
 |---|---|---|
-| `--workdir` | yes | Root working directory. All paths are derived from this. |
+| `--workdir` | yes | Root working directory - paths derived |
 | `--size` | yes | Size window in `LOW-HIGH` format, e.g. `150-350` (inclusive both ends) |
 | `--parallel` | no (default: 2) | Number of worker processes |
 
 > **Note:** All required arguments are passed automatically by the shell wrapper.
 
-## Why Python
-The cluster/hotspot logic requires conditional branching, boundary candidate
-evaluation, and uncertain cut tracking that is significantly easier to implement
-and validate correctly in Python with NumPy than in Rust. The vectorized NumPy
-operations on per-accession blocks give sufficient performance — the bottleneck
-on large genomes is disk I/O, not computation.
 
 ## Worker initialisation: enzyme dict loaded once per process
 `ProcessPoolExecutor` spawns N worker processes. Each process calls `init_worker`
 exactly once at startup, loading `enzymes.csv` into the global `_GLOBAL_EDICT`.
-This means the enzyme dictionary is read from disk N times total (once per worker).
 
 ## Size window parsing (parse_size_range)
-Validated early in `main()` before any worker is spawned. If the format is wrong
-the pipeline exits immediately with a clear message.
+Validated early in `main()`. If the format is wrong the pipeline exits
+with a clear message.
 
 ## Enzyme motif intervals (compute_pair_intervals)
-For overlap detection the script needs to know the full extent of each recognition
+For overlap detection it's needed the full extent of each recognition
 site on the genome, not just the cut position. For each cut site:
 
 ```
@@ -332,7 +299,6 @@ NumPy boolean masks per enzyme — not loop over individual rows.
 ## Per-accession block processing (process_accession_block)
 The sorted cut list is split into contiguous blocks of the same accession. Each
 block is processed independently — fragments cannot span contig boundaries.
-This split also enables correct cluster detection which is local to each contig.
 
 ### Overlap detection
 Two adjacent recognition site intervals overlap if they share at least 1 bp
@@ -358,15 +324,12 @@ fragments that may be real library members. Instead:
 
 **4)** The first candidate that passes the size filter is written, then the search stops
 
-**5)** This is conservative: one fragment per cluster boundary side maximum
-
-This approach is transparent — the user sees exactly how many uncertain cuts and
-clusters exist per combination via `statistics_uncertain.csv`. And results are also
+We present results of clusters via `statistics_uncertain.csv`. And results are also
 included in final `summary.tsv`.
 
 ### Normal fragments (outside clusters)
-For cuts outside clusters the logic is simple: adjacent pairs of different enzymes
-on the same accession that pass the size filter are emitted. Fully vectorized via
+For cuts outside clusters: adjacent pairs of different enzymes on the same 
+accession that pass the size filter are emitted. Fully vectorized via
 boolean mask.
 
 ## Output files
@@ -380,24 +343,16 @@ boolean mask.
 
 ## Path resolution in main()
 All paths are derived from `--workdir`:
-- `enzymes.csv` — located relative to the script file itself (bundled with pipeline)
+- `enzymes.csv` — located relative to the script file itself
 - `combinations.csv` — `<workdir>/results/combinations.csv`
 - `cuts.csv` per combination — `<workdir>/results/<EnzA_EnzB>/cuts.csv`
 - All outputs — `<workdir>/results/<EnzA_EnzB>/`
-
-## load_combinations: format tolerance
-The combinations CSV parser accepts multiple column name conventions
-(`enzyme_a/enzyme_b`, `enzyme1/enzyme2`, `combo`, `combination`, or first two
-columns). This is defensive — the authoritative format in this pipeline is
-`enzyme_a,enzyme_b` from `combinations_processing.py`, but the tolerance means
-the script can also be run as standalone with a manually created CSV in any reasonable
-format, mainly this feature was used for testing.
 
 ---
 
 # postprocess_metrics.py
 
-## Purpose
+## Summary
 Computes per-combination metrics that require the reference genome sequence:
 fragment length distribution and GC content statistics. Takes both the unfiltered
 `fragments.csv` (from Rust binary, for distribution counts) and the library-selected
@@ -413,13 +368,6 @@ longest-first, used by `plots.py` for chromosome-level visualisation.
 | `--ref` | yes | Reference FASTA (plain or gzipped) |
 | `--size` | yes | Size window e.g. `150-350` — used to annotate distribution bins |
 | `--parallel` | no (default: 2) | Number of worker processes |
-
-## A separate step from fragment_generation.py
-GC content calculation requires extracting sequences from the reference genome for
-every filtered fragment. Loading a large reference genome (e.g. wheat ~14 Gb) into
-memory in every worker that processes combinations would be prohibitive. This script
-loads the reference once per worker process via `init_worker` and then processes all
-combinations assigned to that worker against the already-loaded reference.
 
 ## Reference genome loading (init_worker)
 The reference FASTA is loaded once per worker process at startup via
@@ -443,24 +391,17 @@ well-assembled genomes where chromosomes are typically the longest sequences.
 ## Distribution (build_distribution_rows)
 Fragment counts are binned into standard 100 bp bins (0-99, 100-199, ... >=1000)
 using `fragments.csv` — the **unfiltered** set from the Rust binary. This gives
-the full picture of where cuts fall across all fragment sizes, not just the
-selected window.
+the full picture of where cuts fall across all fragment sizes.
 
 The user-specified size window is recorded as an additional `custom_LOW-HIGH` row
-at the end of `distribution.csv` with the count from `filtered.csv`. Bins that
-overlap the size window are marked with `note="selected"` so downstream scripts
-and users can identify them without re-parsing the size argument.
+at the end of `distribution.csv` with the count from `filtered.csv`.
 
 The percentage column uses total unfiltered fragments as the denominator — so the
 `custom` row percentage shows what fraction of all possible fragments fall inside
-the selected window. This is a key number for evaluating whether a combination
-will produce enough loci for the intended study.
+the selected window.
 
 ## GC content (compute_gc_stats)
-Computed only on `filtered.csv` — the library-selected fragments. Computing GC
-on unfiltered fragments would mix in fragments that will never be sequenced and
-would not reflect the actual GC bias of the library.
-
+Computed only on `filtered.csv` — the library-selected fragments.
 For each filtered fragment the sequence is extracted directly from the reference:
 `ref_seqs[accession][start : start + fragment_length]`. GC content is then
 `(G + C) / length`. Statistics reported: mean, median, min, max, standard deviation
@@ -472,7 +413,7 @@ skipped. If no filtered fragments exist the output is `n/a` for all metrics.
 ## Output files
 | File | Description |
 |---|---|
-| `results/contig_lengths.txt` | Tab-separated accession + length, sorted longest first. Written once per run. |
+| `results/contig_lengths.txt` | Tab-separated accession + length, sorted longest first |
 | `results/<EnzA_EnzB>/distribution.csv` | Fragment counts per 100 bp bin + custom window row |
 | `results/<EnzA_EnzB>/gc_metrics.csv` | GC statistics for filtered fragments: mean, median, min, max, std |
 
@@ -480,7 +421,7 @@ skipped. If no filtered fragments exist the output is `n/a` for all metrics.
 
 # annotation.py
 
-## Purpose
+## Summary
 Optional step that intersects the predicted library (`filtered.csv`) with genomic
 annotations (GFF/GFF3/GTF and/or RepeatMasker TE output) and reports how many
 bases of the predicted library overlap each annotation category. Output is
@@ -502,23 +443,19 @@ Bedtools is not a required dependency for the rest of the pipeline, only for ann
 script will start `annotation.py`.
 
 ## Bedtools (external dependency)
-Interval arithmetic on genomic coordinates — intersect, subtract, sort, merge —
-is exactly what bedtools is designed for. Reimplementing this correctly in Python
-would be substantial work with no benefit. Bedtools is standard in any genomics
-environment and is bundled in the Docker/Singularity containers, so it is never
-a user-facing dependency.
+Interval arithmetic on genomic coordinates — intersect, subtract, sort, merge. 
+It's in container, not a dependency that user has to download.
 
 ## Annotation cache (_annotation_cache/)
 GFF and TE files are parsed and converted to sorted, merged per-category BED files
 **once** and stored in `results/_annotation_cache/`. All combinations then work
 against these cached BED files rather than re-parsing the raw annotation files
-per combination. This is useful when there are many combinations — parsing a large
-GFF3 once as opposed to once per combination.
+per combination.
 
 ## GFF processing (build_gff_sources)
 Each GFF feature type becomes a separate annotation category (`gff:CDS`,
 `gff:exon`, etc.). `region` and `chromosome` entries are skipped as they are
-coordinate system entries, not biological features.
+coordinate system entries.
 
 Categories are ordered by `GFF_PRIORITY`:
 ```
@@ -536,10 +473,9 @@ becomes a category labelled `te:Class_Family` (e.g. `te:LINE_L1`). Coordinates
 are already 1-based — converted to 0-based by `start - 1`.
 
 ## Exclusive base counting (count_unique_category_bases)
-The core methodological decision: each genomic base is counted in **at most one**
-category, assigned to the highest-priority category that covers it.
+Each genomic base is counted in **at most one** category, 
+assigned to the highest-priority category that covers it.
 
-The algorithm:
 1. Pre-intersect every category with the library BED — work only on
    library-sized intervals from this point forward
 2. Walk categories in priority order
@@ -553,24 +489,19 @@ under `CDS` (higher priority). `exon` gets credit only for bases not already
 claimed by `CDS`. The total across all categories therefore never exceeds
 `total_filtered_bases`.
 
-This is a deliberate design choice — additive counting (where one base can be
-counted in multiple categories) would make the percentages sum to more than 100%
-and be misleading for library composition interpretation.
-
 ## Subprocess pipeline management
 All bedtools calls are run as subprocesses. Chained operations (sort | merge,
 intersect | sort | merge) are wired as Unix pipes using `subprocess.Popen` with
 `stdout=subprocess.PIPE` — no intermediate temp files for the pipe stages.
 
 `_check_procs` waits for all processes in a pipeline and raises if any exited
-non-zero. This is necessary because a non-zero exit in the middle of a pipe
-does not automatically propagate — it must be checked explicitly.
+non-zero.
 
 ## Temporary directories per combination
 Each combination's bedtools work happens inside a `tempfile.TemporaryDirectory`
 that is deleted automatically when the combination finishes. The annotation cache
 (shared across combinations) is kept in `results/_annotation_cache/` and is
-persistent after run finishes.
+presented after run finishes.
 
 ## Output (results/<EnzA_EnzB>/annotation_summary.csv)
 | Column | Description |
@@ -587,8 +518,8 @@ library after `bedtools merge`.
 
 # summary.py
 
-## Purpose
-Aggregates per-combination CSV outputs from all previous pipeline steps into a
+## Summary
+Combines per-combination CSV outputs from all previous pipeline steps into a
 single `summary.tsv`. One row per combination, one column per metric. Intended
 for direct import into Excel for comparison across combinations.
 
@@ -604,46 +535,32 @@ each combination is processed — any key not yet seen is appended to the column
 list. Combinations processed before a new column appears get an empty string for
 that column via `row.get(col, "")`.
 
-This means column order reflects the order combinations were processed and the
-order keys appeared, not a fixed schema. The first combination that has
-`gff:CDS` determines its position in the header — all subsequent combinations
-either have a value for it or get an empty cell.
-
 ## Input files per combination (all optional)
 | File | Loader | What it contributes |
 |---|---|---|
 | `statistics_cutting.csv` | `load_stats` | First row only: total_cuts, uncertain_cuts, filtered_fragments, etc. |
-| `gc_metrics.csv` | `load_gc` | `metric → value` pairs: gc_mean_pct, gc_median_pct, etc. |
+| `gc_metrics.csv` | `load_gc` | `metric → value` pairs: gc_mean_pct, gc_median_pct, .... |
 | `distribution.csv` | `load_distribution` | `length_range → count` pairs: one column per size bin |
 | `annotation_summary.csv` | `load_annotation` | `category → pct_of_library` pairs — absent if annotation.py did not run |
 
 All loaders return `{}` if the file does not exist — missing files produce empty
-cells in the output, not errors. This means summary.py runs correctly regardless
-of whether annotation.py was run.
-
-## No parallelism
-Each combination reads four small CSV files. The bottleneck is disk I/O on small
-files, not computation — parallelism would add overhead without benefit here.
+cells in the output.
 
 ---
 
 # plots.py
 
-## Purpose
+## Summary
 Final step of the pipeline. Reads per-combination CSVs and produces six
-publication-ready figures comparing all combinations at once. No computation
-happens here — only reading already-produced CSVs and rendering plots.
-The script is intentionally decoupled from the rest of the pipeline and can
-be re-run independently at any time (e.g. with different `--chroms` or `--dpi`)
-without re-running any upstream steps.
+publication-ready figures comparing all combinations at once.
 
 ## Arguments
 | Argument | Required | Description |
 |---|---|---|
 | `--workdir` | yes | Root working directory |
-| `--size` | yes | Size window used for the run, e.g. `150-350` — used to highlight the selected window on the size distribution plot |
-| `--chroms` | yes | How many contigs to treat as chromosomes in the chromosome distribution plots (longest first from `contig_lengths.txt`) |
-| `--dpi` | no (default: 300) | Output resolution — 300 dpi is print quality, lower values for faster preview |
+| `--size` | yes | Size window used for the run, e.g. `150-350` |
+| `--chroms` | yes | How many contigs to treat as chromosomes (longest first from `contig_lengths.txt`) |
+| `--dpi` | no (default: 300) | Output resolution |
 
 ## Combination discovery (discover_combos)
 Combinations are discovered from subdirectories of `results/` that contain
@@ -656,37 +573,32 @@ exists, including partial runs.
 ### 1. heatmap_fragment_lengths.png
 Source: `fragments.csv` (all fragments, unfiltered — from Rust binary)
 Shows the full fragment length distribution for every combination as a heatmap
-with 10 bp bins up to 1000 bp and log-scale colour. Uses all fragments (not just
-filtered) so the user can see the complete picture and evaluate whether the chosen
+with 10 bp bins up to 1000 bp and log-scale colour. Uses all fragments 
+so the user can see the complete picture and evaluate whether the chosen
 size window captures the main peak or is offset. Overlaping cut sites end up in 0-9 bp
 bin and should be ignored.
 
 ### 2. heatmap_chrom_distribution.png
 Source: `filtered.csv` (library-selected fragments)
 Per-chromosome fragment counts for the N longest contigs (user-specified via
-`--chroms`). Contig order follows `contig_lengths.txt` — longest contig first,
-which typically corresponds to chromosome order in well-assembled genomes.
+`--chroms`). Contig order follows `contig_lengths.txt` — longest contig first.
 Highlights whether any combination produces uneven chromosomal coverage,
 which is even expected in lot of cases.
 
 ### 3. bar_chrom_distribution.png
 Source: `filtered.csv`
-Same data as the heatmap but as a grouped bar chart — easier to compare exact
-counts between combinations on specific chromosomes. Both chromosome plots are
-produced from the same data pass.
+Same data as the heatmap but as a grouped bar chart — to compare exact
+counts between combinations on specific chromosomes.
 
 ### 4. gc_distribution.png
 Source: `gc_metrics.csv`
 Mean GC ± 1 SD per combination with whiskers showing min/max. Allows rapid
-visual comparison of GC bias across combinations. Combinations with
-`gc_mean_pct == "n/a"` (no filtered fragments) are silently skipped.
+visual comparison of GC bias across combinations.
 
 ### 5. size_distributions.png (line plot)
 Source: `distribution.csv`
 Fragment count per 100 bp bin for each combination as overlapping line plots.
-The user-specified size window is highlighted as a shaded region so the user
-can immediately see how much of the distribution falls inside vs. outside the
-selected window.
+The user-specified size window is highlighted.
 
 ## Annotation plot (annotation_coverage.png)
 Source: `annotation_summary.csv` (absent if annotation.py did not run)
@@ -694,32 +606,18 @@ Stacked horizontal bar chart showing what fraction of each combination's library
 overlaps GFF features and TE categories. Two panels side by side — GFF left,
 TE right — rendered only if the respective data exists.
 
-**Exclusive base accounting** is already done in `annotation.py` — the
-percentages in `annotation_summary.csv` are already non-overlapping. The plot
-simply stacks them. The remainder to 100% is rendered as "unannotated" in grey.
-
 `total_filtered_bases` and `gff:region` are excluded from the plot
 (`_SKIP_CATS`) — these are denominator/coordinate entries, not biological
 feature categories.
 
 Categories are split by prefix: `gff:*` uses `tab20` colormap, `te:*` uses
-`Set2` — visually distinct palettes so GFF and TE panels are immediately
-distinguishable.
+`Set2` — visually distinct palettes.
 
 ## Figure sizing: dynamic not fixed
 All figures scale their dimensions based on the number of combinations and
-chromosomes:
-- More combinations → taller heatmaps, more bar groups
-- More chromosomes → wider bar/heatmap plots
-- Font sizes are also scaled down for large numbers of combinations to prevent
-  label overlap
+chromosomes.
 
 ## Agg backend (matplotlib.use("Agg"))
 The script runs on servers and in containers that have no display. `Agg` is a
 non-interactive backend that renders directly to file without requiring a display
 server.
-
-## Global style
-Set once via `plt.rcParams` at module level — DejaVu Sans for font (universally
-available, no LaTeX dependency), consistent axis label sizes across all plots.
-DPI is runtime-configurable via `--dpi` and overrides the module-level default.
