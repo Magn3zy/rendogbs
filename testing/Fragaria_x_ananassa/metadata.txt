@@ -1,0 +1,12 @@
+#citation:https://www.nature.com/articles/s41598-019-39808-9
+
+#randomly selected samples:
+fasterq-dump SRR7445857	SRR7445860	SRR7445866 SRR7445874 SRR7445888 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump SRR7445889	SRR7445902 SRR7445918 SRR7445924 SRR7445937	 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/034/370/585/GCA_034370585.1_ASM3437058v1/GCA_034370585.1_ASM3437058v1_genomic.fna.gz 
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, MspI_PstI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/fxa.fna   --size 160-800 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_fxa.csv --parallel 2  --chroms 28 --workdir /home/raidfolder/rendogbs/pipeline_references/fxa_rendogbs

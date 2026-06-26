@@ -1,0 +1,12 @@
+#citation:https://www.frontiersin.org/journals/plant-science/articles/10.3389/fpls.2021.679659/full
+
+#randomly selected samples:
+fasterq-dump SRR13285943 SRR13285956 SRR13285976 SRR13285980 SRR13285982  -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+fasterq-dump SRR13285991 SRR13286000 SRR13286011 SRR13286014 SRR13286046 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/512/975/GCF_000512975.1_S_indicum_v1.0/GCF_000512975.1_S_indicum_v1.0_genomic.fna.gz
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, MspI_AseI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/si.fna   --size 260-420 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_si.csv --parallel 2  --chroms 16 --workdir /home/raidfolder/rendogbs/pipeline_references/si_rendogbs
