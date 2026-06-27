@@ -1,0 +1,12 @@
+#citation:https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2020.00763/full
+
+#randomly selected samples:
+fasterq-dump SRR11578477 SRR11578479 SRR11578481 SRR11578490 SRR11578495 SRR11578496 SRR11578497 SRR11578499 SRR11578505 SRR11578487 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/034/140/825/GCF_034140825.1_ASM3414082v1/GCF_034140825.1_ASM3414082v1_genomic.fna.gz
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, SphI,MlucI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/os.fna   --size 250-400 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_os.csv --parallel 2  --chroms 16 --workdir /home/raidfolder/rendogbs/pipeline_references/os_rendogbs
