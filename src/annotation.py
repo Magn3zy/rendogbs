@@ -9,8 +9,7 @@
 # Copyright (c) Aaron Quinlan
 # Licensed under the MIT License.
 #
-# Output: annotation_coverage.png, bar_chom_distribution.png, gc_distribution.png,
-#         heatmap_fragment_lengths.png, heatmap_chrom_distribution.png, size_distribution.png
+# Output: annotation_summary.csv
 
 from __future__ import annotations
 import argparse

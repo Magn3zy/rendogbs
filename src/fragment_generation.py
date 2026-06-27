@@ -377,49 +377,20 @@ def process_job(
 
 # combinations z combinations.csv
 def load_combinations(path: Path) -> list[tuple[str, str]]:
-    
     df = pd.read_csv(path, dtype=str)
     df.columns = df.columns.str.strip()
 
-    if {"enzyme_a", "enzyme_b"}.issubset(df.columns):
-        pairs = list(zip(df["enzyme_a"].astype(str), df["enzyme_b"].astype(str)))
-
-    elif {"enzyme1", "enzyme2"}.issubset(df.columns):
-        pairs = list(zip(df["enzyme1"].astype(str), df["enzyme2"].astype(str)))
-
-    elif "combo" in df.columns:
-        pairs = []
-        for val in df["combo"].astype(str):
-            parts = val.split("_")
-            if len(parts) != 2:
-                raise ValueError(f"Cannot parse combination '{val}' in combo column.")
-            pairs.append((parts[0], parts[1]))
-
-    elif "combination" in df.columns:
-        pairs = []
-        for val in df["combination"].astype(str):
-            parts = val.split("_")
-            if len(parts) != 2:
-                raise ValueError(f"Cannot parse combination '{val}' in combination column.")
-            pairs.append((parts[0], parts[1]))
-
-    else:
-        if df.shape[1] < 2:
-            raise ValueError(
-                "Combinations file must have at least two columns "
-                "(enzyme1, enzyme2) or a combo/combination column."
-            )
-        pairs = list(zip(df.iloc[:, 0].astype(str), df.iloc[:, 1].astype(str)))
+    if not {"enzyme_a", "enzyme_b"}.issubset(df.columns):
+        sys.exit(f"[ERROR] {path} must contain columns: enzyme_a, enzyme_b")
 
     seen: set[tuple[str, str]] = set()
     unique_pairs: list[tuple[str, str]] = []
-    for a, b in pairs:
+    for a, b in zip(df["enzyme_a"].astype(str), df["enzyme_b"].astype(str)):
         if (a, b) not in seen:
             seen.add((a, b))
             unique_pairs.append((a, b))
 
     return unique_pairs
-
 
 def make_job(
     cuts_root: Path,
