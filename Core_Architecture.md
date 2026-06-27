@@ -230,7 +230,7 @@ because no thread mutates the cache.
 | `end_enzyme` | Name of the enzyme at the right end |
 | `fragment_length` | `end_pos - start_pos` in base pairs |
 
-## Write strategy: String buffer then single fs::write
+## String buffer then single fs::write
 All rows are accumulated into a single `String` and written in one `fs::write` call
 per combination — avoids repeated syscalls for what is a bulk write.
 
@@ -311,7 +311,7 @@ overlap = max(s1, s2) < min(e1, e2)
 A cluster/hotspot is a run of consecutive overlapping pairs. Detected via
 run-length encoding on the boolean overlap array — vectorized, not loop.
 
-### Why clusters are not simply discarded
+### Why clusters are not discarded
 At a cluster of overlapping recognition sites it is ambiguous which enzyme cuts
 at which position. However, discarding the entire cluster would silently lose
 fragments that may be real library members. Instead:
@@ -324,7 +324,7 @@ fragments that may be real library members. Instead:
 
 **4)** The first candidate that passes the size filter is written, then the search stops
 
-We present results of clusters via `statistics_uncertain.csv`. And results are also
+We present results of clusters via `statistics_cutting.csv`. And results are also
 included in final `summary.tsv`.
 
 ### Normal fragments (outside clusters)
@@ -405,7 +405,7 @@ Computed only on `filtered.csv` — the library-selected fragments.
 For each filtered fragment the sequence is extracted directly from the reference:
 `ref_seqs[accession][start : start + fragment_length]`. GC content is then
 `(G + C) / length`. Statistics reported: mean, median, min, max, standard deviation
-— all as percentages.
+— all as percentages, computed via NumPy.
 
 Fragments with no sequence in the reference (accession not found) are silently
 skipped. If no filtered fragments exist the output is `n/a` for all metrics.
@@ -429,7 +429,7 @@ bases of the predicted library overlap each annotation category. Output is
 
 This script is only invoked by wrapper script if the user provides `--te` or 
 `--annotation` (or both). If neither is given the pipeline skips this step entirely. 
-Bedtools is not a required dependency for the rest of the pipeline, only for annotation.
+Bedtools is required dependency only for annotation.
 
 ## Arguments
 | Argument | Required | Description |
@@ -442,9 +442,9 @@ Bedtools is not a required dependency for the rest of the pipeline, only for ann
 > **Note:** At least one of `--annotation` or `--te` must be provided, if is wrapper 
 script will start `annotation.py`.
 
-## Bedtools (external dependency)
+## Bedtools
 Interval arithmetic on genomic coordinates — intersect, subtract, sort, merge. 
-It's in container, not a dependency that user has to download.
+It's in image, not a dependency that user has to download.
 
 ## Annotation cache (_annotation_cache/)
 GFF and TE files are parsed and converted to sorted, merged per-category BED files
@@ -502,6 +502,11 @@ Each combination's bedtools work happens inside a `tempfile.TemporaryDirectory`
 that is deleted automatically when the combination finishes. The annotation cache
 (shared across combinations) is kept in `results/_annotation_cache/` and is
 presented after run finishes.
+
+##  Worker processes
+Combinations are processed in parallel via `ProcessPoolExecutor`. `sources` 
+(parsed annotation BED files) and `bedtools` path are loaded once per worker 
+process at startup via `_init_annotation_worker` initializer.
 
 ## Output (results/<EnzA_EnzB>/annotation_summary.csv)
 | Column | Description |
