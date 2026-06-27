@@ -10,6 +10,7 @@ import argparse
 import csv
 import gzip
 import sys
+import numpy as np
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -161,28 +162,24 @@ def compute_gc_stats(filtered: list[FragmentRow], ref_seqs: dict[str, str]) -> d
 
     if not gc_vals:
         return {
-            "n_fragments": 0,
-            "gc_mean_pct": "n/a",
+            "n_fragments":   0,
+            "gc_mean_pct":   "n/a",
             "gc_median_pct": "n/a",
-            "gc_min_pct": "n/a",
-            "gc_max_pct": "n/a",
-            "gc_std_pct": "n/a",
+            "gc_min_pct":    "n/a",
+            "gc_max_pct":    "n/a",
+            "gc_std_pct":    "n/a",
         }
 
-    n = len(gc_vals)
-    mean = sum(gc_vals) / n
-    srt = sorted(gc_vals)
-    median = srt[n // 2] if n % 2 else (srt[n // 2 - 1] + srt[n // 2]) / 2
-    std = (sum((x - mean) ** 2 for x in gc_vals) / n) ** 0.5
+    gc_array = np.array(gc_vals)
     pct = lambda v: f"{v * 100:.2f}"
 
     return {
-        "n_fragments": n,
-        "gc_mean_pct": pct(mean),
-        "gc_median_pct": pct(median),
-        "gc_min_pct": pct(min(gc_vals)),
-        "gc_max_pct": pct(max(gc_vals)),
-        "gc_std_pct": pct(std),
+        "n_fragments":   len(gc_array),
+        "gc_mean_pct":   pct(np.mean(gc_array)),
+        "gc_median_pct": pct(np.median(gc_array)),
+        "gc_min_pct":    pct(np.min(gc_array)),
+        "gc_max_pct":    pct(np.max(gc_array)),
+        "gc_std_pct":    pct(np.std(gc_array)),
     }
 
 

@@ -360,7 +360,6 @@ def process_job(
             "uncertain_clusters": n_clusters,
         }])
         stats.to_csv(outdir / "statistics_uncertain.csv", index=False)
-        stats.to_csv(outdir / "statistics_cutting.csv",   index=False)
 
         return {
             "combo":     combo,
