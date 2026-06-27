@@ -21,6 +21,7 @@ import subprocess
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Iterable
 
@@ -33,6 +34,14 @@ class AnnotationSource:
 
 FragmentRow = tuple[str, int, str, str, int]
 BedRecord = tuple[str, int, int]
+
+_WORKER_SOURCES: list[AnnotationSource] | None = None
+_WORKER_BEDTOOLS: str | None = None
+
+def _init_annotation_worker(sources: list[AnnotationSource], bedtools: str) -> None:
+    global _WORKER_SOURCES, _WORKER_BEDTOOLS
+    _WORKER_SOURCES = sources
+    _WORKER_BEDTOOLS = bedtools
 
 
 GFF_PRIORITY = [
@@ -368,7 +377,9 @@ def count_unique_category_bases(
     return counts
 
 
-def process(combo: str, results_dir: Path, sources: list[AnnotationSource], bedtools: str):
+def process(combo: str, results_dir: Path):
+    assert _WORKER_SOURCES is not None
+    assert _WORKER_BEDTOOLS is not None
     combo_dir = results_dir / combo
     filtered = combo_dir / "filtered.csv"
 
@@ -380,8 +391,8 @@ def process(combo: str, results_dir: Path, sources: list[AnnotationSource], bedt
     with tempfile.TemporaryDirectory() as td_str:
         td = Path(td_str)
 
-        library_bed, library_total = build_library_bed(rows, td, bedtools)
-        counts = count_unique_category_bases(bedtools, library_bed, sources, td)
+    library_bed, library_total = build_library_bed(rows, td, _WORKER_BEDTOOLS)
+    counts = count_unique_category_bases(_WORKER_BEDTOOLS, library_bed, _WORKER_SOURCES, td)
 
     out = combo_dir / "annotation_summary.csv"
     with open(out, "w", newline="", encoding="utf-8") as fh:
@@ -427,18 +438,18 @@ def main() -> None:
 
     print(f"[INFO] {len(sources)} annotation categories")
 
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-
-    with ProcessPoolExecutor(max_workers=args.parallel) as ex:
+    with ProcessPoolExecutor(
+        max_workers=args.parallel,
+        initializer=_init_annotation_worker,
+        initargs=(sources, bedtools),
+    ) as ex:
         futures = [
-            ex.submit(process, combo, results, sources, bedtools)
+            ex.submit(process, combo, results)
             for combo in combos
         ]
-
         for f in as_completed(futures):
             combo, out = f.result()
             print(combo, "->", out)
-
 
 if __name__ == "__main__":
     main()
