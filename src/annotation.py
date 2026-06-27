@@ -160,29 +160,6 @@ def bedtools_subtract(bedtools: str, a: Path, b: Path, out: Path) -> None:
         return
     run_bedtools_to_file(bedtools, ["subtract", "-sorted", "-a", str(a), "-b", str(b)], out)
 
-
-def bedtools_intersect_sum(bedtools: str, a: Path, b: Path) -> int:
-    if file_is_empty(a) or file_is_empty(b):
-        return 0
-
-    proc = subprocess.Popen(
-        [bedtools, "intersect", "-sorted", "-a", str(a), "-b", str(b), "-wo"],
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    assert proc.stdout is not None
-
-    total = 0
-    for line in proc.stdout:
-        if line.strip():
-            total += int(line.rsplit("\t", 1)[-1])
-
-    rc = proc.wait()
-    if rc != 0:
-        raise SystemExit(f"[ERROR] bedtools intersect failed with exit code {rc}")
-
-    return total
-
 # Intersect a and b, then sort and merge without temp files
 def bedtools_intersect_to_file(bedtools: str, a: Path, b: Path, out: Path) -> None:
     if file_is_empty(a) or file_is_empty(b):
