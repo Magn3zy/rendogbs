@@ -1,0 +1,11 @@
+#citation:https://academic.oup.com/g3journal/article/13/3/jkad009/6987299
+
+#randomly selected samples:
+fasterq-dump SRR19358299 SRR19358305 SRR19358310 SRR19358325 SRR19358347 SRR19358356 SRR19358361 SRR19358371 SRR19358381 SRR19358410 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/022/985/175/GCF_022985175.1_IGBB_LRoh.1.0/GCF_022985175.1_IGBB_LRoh.1.0_genomic.fna.gz
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, NsiI,MspI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/lr.fna   --size 290-620 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_lr.csv --parallel 2  --chroms 25 --workdir /home/raidfolder/rendogbs/pipeline_references/lr_rendogbs
