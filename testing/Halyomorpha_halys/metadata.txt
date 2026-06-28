@@ -1,0 +1,11 @@
+#citation:
+
+#randomly selected samples:
+fasterq-dump SRR13005543 SRR13005551 SRR13005555 SRR13005274 SRR13005321 SRR13005351 SRR13005362 SRR13005408 SRR13005484 SRR13005513 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/696/795/GCF_000696795.3_Hhal_1.1/GCF_000696795.3_Hhal_1.1_genomic.fna.gz
+downloaded via wget
+
+#rendogbs, EcoRI,MspI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/hh.fna   --size 220-450 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_hh.csv --parallel 2  --chroms 10 --workdir /home/raidfolder/rendogbs/pipeline_references/hh_rendogbs
