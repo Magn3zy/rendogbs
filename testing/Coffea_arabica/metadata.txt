@@ -1,0 +1,11 @@
+#citation:https://www.frontiersin.org/journals/plant-science/articles/10.3389/fpls.2025.1629553/full#s2
+
+#randomly selected samples:
+fasterq-dump SRR35086534 SRR35086541 SRR35086586 SRR35086611 SRR35086646 SRR35086666 SRR35086703 SRR35086713 SRR35086715 SRR35086544 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/036/785/885/GCF_036785885.1_Coffea_Arabica_ET-39_HiFi/GCF_036785885.1_Coffea_Arabica_ET-39_HiFi_genomic.fna.gz 
+downloaded via wget
+
+#rendogbs +/-20bp of size selection in article, MseI,SacI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/ca.fna   --size 300-400 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_ca.csv --parallel 2  --chroms 22 --workdir /home/raidfolder/rendogbs/pipeline_references/ca_rendogbs
