@@ -1,0 +1,12 @@
+#citation:https://academic.oup.com/g3journal/article/12/1/jkab368/6409860?login=false
+
+#randomly selected samples:
+fasterq-dump SRR15564086 SRR15564103 SRR15564182 SRR15564286 SRR15563854 SRR15563934 SRR15563991 SRR15564007 SRR15564027 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
+fasterq-dump SRR15564060 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/053/477/285/GCF_053477285.1_ASM5347728v1/GCF_053477285.1_ASM5347728v1_genomic.fna.gz
+downloaded via wget
+
+#rendogbs EcoRI,SphI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/cau.fna   --size 180-680 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_cau.csv --parallel 2  --chroms 10 --workdir /home/raidfolder/rendogbs/pipeline_references/cau_rendogbs
