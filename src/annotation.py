@@ -366,16 +366,14 @@ def process(combo: str, results_dir: Path):
 
     with tempfile.TemporaryDirectory() as td_str:
         td = Path(td_str)
-
-    library_bed, library_total = build_library_bed(rows, td, _WORKER_BEDTOOLS)
-    counts = count_unique_category_bases(_WORKER_BEDTOOLS, library_bed, _WORKER_SOURCES, td)
+        library_bed, library_total = build_library_bed(rows, td, _WORKER_BEDTOOLS)
+        counts = count_unique_category_bases(_WORKER_BEDTOOLS, library_bed, _WORKER_SOURCES, td)
 
     out = combo_dir / "annotation_summary.csv"
     with open(out, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["category", "bases_overlapping", "pct_of_library"])
         w.writerow(["total_filtered_bases", library_total, "100.00" if library_total else "0.00"])
-
         for label, value in counts.items():
             pct = (value / library_total * 100) if library_total else 0.0
             w.writerow([label, value, f"{pct:.2f}"])
