@@ -184,7 +184,7 @@ def process_accession_block(
     idx = np.flatnonzero(normal_mask)
     if idx.size:
         frag_len = pos[idx + 1] - pos[idx]
-        for k, i in enumerate(idx):
+        for k, i in enumerate(idx): # JC: Nevím, jak moc je tento krok reálně výpočetně náročný, ovšem dá se řešit i vektorově, tedy rychleji.
             if size_ok(int(frag_len[k]), min_size, max_size):
                 j = i + 1
                 filtered.append((accession, int(pos[i]), str(enz[i]), str(enz[j]), int(frag_len[k])))
@@ -256,6 +256,7 @@ def process_job(
                 dtype={"accession": "string", "cut_position": "int64", "enzyme": "string"},
                 low_memory=False,
             )
+            # JC: Na řádku 256 by prý dávalo smysl dát "accession" a "enzyme": str, protože dříve jsou nastaveny jako objecty. Ale netuším, jestli to může mít reálný dopad na rychlost. 
         except Exception as e:
             return _fail(combo, f"Failed to read CSV: {e}")
 
@@ -277,7 +278,7 @@ def process_job(
             ignore_index=True,
         )
 
-        accessions    = df["accession"].to_numpy(dtype=object,    copy=False)
+        accessions    = df["accession"].to_numpy(dtype=object,    copy=False) # JC: Category zabere u velkého datasetu méně paměti než object.
         cut_positions = df["cut_position"].to_numpy(dtype=np.int64, copy=False)
         enzymes       = df["enzyme"].to_numpy(dtype=object,       copy=False)
 
