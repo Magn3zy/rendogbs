@@ -36,6 +36,7 @@ FAST_COMBOS = [
 ]
 
 # loading enzymes.csv with expanded IUPAC characters
+# JC: U této a další funkce bych se možná zamyslel, jestli uživatel nemůže zadat něco špatně: třeba lowercase nebo whitespace v názvu. Zároveň se mě GPT ptá, jestli má platit: ("EcoRI", "MseI") ≠ ("MseI", "EcoRI")
 def load_enzymes_csv(path) -> dict[str, list[dict]]:
     if not os.path.isfile(path):
         sys.exit(f'[ERROR] enzymes.csv not found: {path}')
