@@ -1,0 +1,11 @@
+#citation:https://link.springer.com/article/10.1186/s12870-024-05821-y#data-availability
+
+#randomly selected samples:
+fasterq-dump SRR30553314 SRR30553315 SRR30553375 SRR30553446 SRR30553517 SRR30553585 SRR30553617 SRR30553197 SRR30553239 SRR30553282 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/056/507/715/GCA_056507715.1_ASM5650771v1/GCA_056507715.1_ASM5650771v1_genomic.fna.gz
+downloaded via wget
+
+#rendogbs, EcoRI,MseI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/csa.fna   --size 180-380 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_csa.csv --parallel 2  --chroms 10 --workdir /home/raidfolder/rendogbs/pipeline_references/csa_rendogbs
