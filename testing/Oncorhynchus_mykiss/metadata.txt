@@ -1,0 +1,12 @@
+#citation:https://onlinelibrary.wiley.com/doi/full/10.1111/age.13378
+
+#randomly selected samples:
+fasterq-dump SRR23397492 SRR23397538 SRR23397576 SRR23397638 SRR23397464 SRR23397268 SRR23397317 SRR23397335 SRR23397408 SRR23397458 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
+
+
+#reference data:
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/013/265/735/GCF_013265735.2_USDA_OmykA_1.1/GCF_013265735.2_USDA_OmykA_1.1_genomic.fna.gz
+downloaded via wget
+
+#rendogbs, NlaIII,SbfI
+sh ./rendogbs.sh --ref  /home/raidfolder/rendogbs/pipeline_references/om.fna   --size 280-480 --combinations custom --combinations-file /home/raidfolder/rendogbs/pipeline_references/combs_om.csv --parallel 2  --chroms 10 --workdir /home/raidfolder/rendogbs/pipeline_references/om_rendogbs
