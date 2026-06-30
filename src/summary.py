@@ -65,6 +65,7 @@ def main():
         for k in row:
             if k not in all_cols:
                 all_cols.append(k)
+                # Prý se může stát (například kvůli chybějícím datům), že pořadí nebude vždy stejné.
 
     out_path = results_dir / "summary.tsv"
     with out_path.open("w", newline="") as fh:
@@ -72,6 +73,7 @@ def main():
         w.writerow(all_cols)
         for row in rows:
             w.writerow([row.get(col, "") for col in all_cols])
+            # Nerozlišuje chybějící data a hodnotu 0. Nemůže vést k problému?
 
     print(f"[INFO] written -> {out_path}")
 
