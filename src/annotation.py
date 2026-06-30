@@ -210,7 +210,7 @@ def build_library_bed(rows: list[FragmentRow], workdir: Path, bedtools: str) -> 
 
 
 def build_gff_sources(gff: Path, cache: Path, bedtools: str) -> list[AnnotationSource]:
-    skip = {"region", "chromosome"}
+    skip = {"region", "chromosome", "match"}
     by_label: dict[str, list[BedRecord]] = defaultdict(list)
 
     with open_text(gff) as fh:
