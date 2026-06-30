@@ -93,11 +93,11 @@ def load_combinations_csv(path: Path) -> list[str]:
         combos = [f"{row['enzyme_a']}_{row['enzyme_b']}" for row in reader]
     return combos
 
-
+# Je prý ok řešení, ale mám jako scaling point zmínit, že list je náročný na RAM, takže by tě možná mohla do budoucna zajímat streamovací varianta (csv.DictReader)  
 def read_fragments_csv(path: Path) -> list[FragmentRow]:
     with open(path, "r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
-        rows: list[FragmentRow] = []
+        rows: list[FragmentRow] = [] 
         for row in reader:
             rows.append(
                 (
@@ -159,6 +159,7 @@ def compute_gc_stats(filtered: list[FragmentRow], ref_seqs: dict[str, str]) -> d
         frag_seq = ref_seqs.get(acc, "")[start : start + fl]
         if frag_seq:
             gc_vals.append(gc_content(frag_seq))
+            # JC: Může se stát, že start + fl > len(seq)? Pokud ano, jak se pak počítá GC?
 
     if not gc_vals:
         return {
@@ -284,10 +285,13 @@ def main() -> None:
         combo_dir = results_dir / combo_name
         if not combo_dir.is_dir():
             raise SystemExit(f"[ERROR] Missing combination directory: {combo_dir}")
+            # Určitě k tomu máš důvod, takže spíš zvědavosti: proč v tomto skriptu využíváš if-raise, když jinde bylo if-continue, případně nějaká poznámka? 
+            # Jsou ty chybějící věci v této části tak kritické, že se musí přerušit celý run?
 
     print(f"\n[3/4] Processing {len(combo_names)} combination(s) | parallel={args.parallel} | size={size_low}-{size_high}\n")
 
     results: list[dict[str, Any]] = []
+    # Copilot upozorňuje, že FASTA takto načítá 1x main process a Nx workers, takže se může reálně stát, že bude potřeba 24 GB paměti. Tohle pouze papouškuju, takže zvaž podle sebe. 
     with ProcessPoolExecutor(max_workers=args.parallel, initializer=init_worker, initargs=(str(ref_path),)) as executor:
         futures = {
             executor.submit(process_combination, combo, str(results_dir), size_low, size_high): combo
