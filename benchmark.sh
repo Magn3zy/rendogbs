@@ -1,18 +1,13 @@
 #!/bin/sh
 
 INITWAIT=10
-UNIQNAME=`mktemp -u XXXXXXXXXXXXXXXX`
+UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
+
+# Measure "real" time
+rtstart=$(date +%s)
 
 # Start the pipeline as background job which runs the docker container
-sh rendogbs.sh \
-   --ref ./data/GCF_000001735.3_TAIR10_genomic.fna.gz \
-   --workdir ./runbench \
-   --parallel 2 \
-   --size 200-400 \
-   --annotation data/GCF_000001735.3_TAIR10_genomic.gff.gz \
-   --chroms 5 \
-   --te ./data/GCF_000001735.3_TAIR10_rm.out.gz \
-   --cname $UNIQNAME >/dev/null 2>/dev/null &
+sh rendogbs.sh "$@" --cname $UNIQNAME >/dev/null 2>/dev/null &
 
 # Keep the pipeline PID for cleanup upon exit
 PIPID=$!
@@ -24,7 +19,7 @@ LONGID=
 attempt=0
 while [ -z "$LONGID" -a $attempt -le $INITWAIT ] ; do
     if [ $attempt -gt 0 ] ; then
-	echo Waiting 1s ...
+	echo Sleeping 1s ...
 	sleep 1
     fi
     attempt=$((attempt + 1))
@@ -67,13 +62,17 @@ parse_cpustat() {
 	ts=$(date +%s)
 	nthreadss=$(wc -l /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cgroup.threads 2>/dev/null)
 	nthreads=${nthreadss%% *}
-	if [ $maxthreads -lt $nthreads ] ; then
-	    maxthreads=$nthreads
+	if [ -n "$nthreads" ] ; then
+	    if [ $maxthreads -lt $nthreads ] ; then
+		maxthreads=$nthreads
+	    fi
 	fi
 	mempeak=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.peak 2>/dev/null)
 	memcur=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.current 2>/dev/null)
 	parse_cpustat $(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cpu.stat 2>/dev/null)
-	echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
+	if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
+	    echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
+	fi
 	sleep 1
     done
 ) | tee $UNIQNAME.data
@@ -95,13 +94,13 @@ set xdata time
 set timefmt '%s'
 set y2tics
 set ylabel "Threads"
-set y2label "Memory"
+set y2label "Memory [MB]"
 set xlabel "Running Time"
 
 plot data u 1:2 w l t 'Threads', \
      data u 1:3 w l t 'Max Threads', \
-     data u 1:4 w l t 'Memory' axes x1y2, \
-     data u 1:5 w l t 'Max Memory' axes x1y2
+     data u 1:(\$4/1024/1024) w l t 'Memory' axes x1y2, \
+     data u 1:(\$5/1024/1024) w l t 'Max Memory' axes x1y2
 
 set output outcname
 
@@ -109,13 +108,31 @@ set title 'CPU Time Usage'
 
 unset y2label
 unset y2tics
-set ylabel "CPU Time"
-plot data u 1:6 w l t "User", \
-     data u 1:7 w l t "System", \
-     data u 1:8 w l t "Total"
+set ylabel "CPU Time [s]"
+plot data u 1:(\$6/1000000) w l t "User", \
+     data u 1:(\$7/1000000) w l t "System", \
+     data u 1:(\$8/1000000) w l t "Total"
 EOF
 gnuplot $UNIQNAME.gnuplot
 
 # Done
+rtend=$(date +%s)
 wait $PIPID
 echo DONE
+
+# Summary
+echo
+echo Ran with options: "$@"
+echo
+echo Maximum threads: $(grep . $UNIQNAME.data|tail -n 1|awk '{print $3}')
+mempeak=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $5}')
+echo Memory peak usage: $((mempeak / 1024 / 1024)) MB
+user_usec=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $6}')
+system_usec=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $7}')
+total_usec=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $8}')
+echo User time: $((user_usec / 1000000)) s
+echo System time: $((system_usec / 1000000)) s
+echo Total time: $((total_usec / 1000000)) s
+echo
+echo Real time: $((rtend - rtstart)) s
+echo
