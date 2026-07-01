@@ -2,6 +2,25 @@
 
 INITWAIT=10
 UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
+WORKDIR=.
+
+# Peek into arguments and extract useful ones
+peek_args() {
+    while [ -n "$1" ] ; do
+	case $1 in
+	    --workdir)
+		WORKDIR=$2
+		shift
+		shift
+		;;
+	    *)
+		shift
+		;;
+	esac
+    done
+}
+peek_args "$@"
+echo Output directory: $WORKDIR
 
 # Measure "real" time
 rtstart=$(date +%s)
@@ -75,10 +94,10 @@ parse_cpustat() {
 	fi
 	sleep 1
     done
-) | tee $UNIQNAME.data
+) | tee $WORKDIR/$UNIQNAME.data
 
 # Generate GNUPlot source and run it
-cat <<EOF >$UNIQNAME.gnuplot
+cat <<EOF >$WORKDIR/$UNIQNAME.gnuplot
 name='$UNIQNAME'
 data=name . '.data'
 outtmname=name . '-tm.svg'
@@ -113,7 +132,10 @@ plot data u 1:(\$6/1000000) w l t "User", \
      data u 1:(\$7/1000000) w l t "System", \
      data u 1:(\$8/1000000) w l t "Total"
 EOF
+owd=$(pwd)
+cd $WORKDIR
 gnuplot $UNIQNAME.gnuplot
+cd "$owd"
 
 # Done
 rtend=$(date +%s)
@@ -124,12 +146,12 @@ echo DONE
 echo
 echo Ran with options: "$@"
 echo
-echo Maximum threads: $(grep . $UNIQNAME.data|tail -n 1|awk '{print $3}')
-mempeak=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $5}')
+echo Maximum threads: $(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $3}')
+mempeak=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $5}')
 echo Memory peak usage: $((mempeak / 1024 / 1024)) MB
-user_usec=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $6}')
-system_usec=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $7}')
-total_usec=$(grep . $UNIQNAME.data|tail -n 1|awk '{print $8}')
+user_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $6}')
+system_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $7}')
+total_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $8}')
 echo User time: $((user_usec / 1000000)) s
 echo System time: $((system_usec / 1000000)) s
 echo Total time: $((total_usec / 1000000)) s
