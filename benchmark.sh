@@ -43,7 +43,12 @@ echo Output directory: $WORKDIR
 rtstart=$(date +%s)
 
 # Start the pipeline as background job which runs the container
-$RUNWRAP sh rendogbs.sh "$@" --cname $UNIQNAME >$WORKDIR/$UNIQNAME.output 2>&1 &
+$RUNWRAP \
+    sh rendogbs.sh \
+    "$@" \
+    --cname $UNIQNAME \
+    --benchmark-sleep \
+    >$WORKDIR/$UNIQNAME.output 2>&1 &
 
 # Keep the pipeline PID for cleanup upon exit
 PIPID=$!

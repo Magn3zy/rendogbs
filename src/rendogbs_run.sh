@@ -125,6 +125,8 @@ RUN_PLOTS=1
 # Local arguments
 WORKDIR=
 DO_ANNOTATION=0
+BENCHMARK_SLEEP_SECONDS=2
+DO_BENCHMARK_SLEEP=0
 
 # Arguments passed to different subtasks
 S1ARGS=
@@ -204,11 +206,19 @@ while [ -n "$1" ] ; do
 	    shift
 	    shift
 	    ;;
+	--benchmark-sleep)
+	    DO_BENCHMARK_SLEEP=$BENCHMARK_SLEEP_SECONDS
+	    shift
+	    ;;
 	*)
 	    shift
 	    ;;
     esac
 done
+
+if [ $DO_BENCHMARK_SLEEP -gt 0 ] ; then
+    sleep $DO_BENCHMARK_SLEEP
+fi
 
 ######## 1) Combinations Processing
 
@@ -360,3 +370,7 @@ summary_table $tss1 $tss2 $tss3 $tss4 $tss5 $tss6 $tss7 $tss8 $tss9 $tsse
 echo
 
 echo "  Results  : ${WORKDIR}/results/"
+
+if [ $DO_BENCHMARK_SLEEP -gt 0 ] ; then
+    sleep $DO_BENCHMARK_SLEEP
+fi
