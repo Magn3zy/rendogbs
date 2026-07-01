@@ -60,17 +60,62 @@ parse_cpustat() {
 }
 
 # Periodically print the stats
-echo TS THREADS MEMORY USER SYSTEM TOTAL
-while ps $PIPID >/dev/null 2>&1 ; do
-    ts=$(date +%s)
-    nthreadss=$(wc -l /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cgroup.threads 2>/dev/null)
-    nthreads=${nthreadss%% *}
-    mempeak=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.peak 2>/dev/null)
-    parse_cpustat $(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cpu.stat 2>/dev/null)
-    echo $ts $nthreads $mempeak $user_usec $system_usec $usage_usec
-    sleep 1
-done
-      
+(
+    echo "#TS THREADS MAXTHREADS MEMORY MAXMEMORY USER SYSTEM TOTAL"
+    maxthreads=0
+    while ps $PIPID >/dev/null 2>&1 ; do
+	ts=$(date +%s)
+	nthreadss=$(wc -l /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cgroup.threads 2>/dev/null)
+	nthreads=${nthreadss%% *}
+	if [ $maxthreads -lt $nthreads ] ; then
+	    maxthreads=$nthreads
+	fi
+	mempeak=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.peak 2>/dev/null)
+	memcur=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.current 2>/dev/null)
+	parse_cpustat $(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cpu.stat 2>/dev/null)
+	echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
+	sleep 1
+    done
+) | tee $UNIQNAME.data
+
+# Generate GNUPlot source and run it
+cat <<EOF >$UNIQNAME.gnuplot
+name='$UNIQNAME'
+data=name . '.data'
+outtmname=name . '-tm.svg'
+outcname=name . '-c.svg'
+
+set terminal svg size 960,600 font "Sans,16"
+set output outtmname
+
+set grid
+set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb "white" behind
+set title 'Threads and Memory Usage'
+set xdata time
+set timefmt '%s'
+set y2tics
+set ylabel "Threads"
+set y2label "Memory"
+set xlabel "Running Time"
+
+plot data u 1:2 w l t 'Threads', \
+     data u 1:3 w l t 'Max Threads', \
+     data u 1:4 w l t 'Memory' axes x1y2, \
+     data u 1:5 w l t 'Max Memory' axes x1y2
+
+set output outcname
+
+set title 'CPU Time Usage'
+
+unset y2label
+unset y2tics
+set ylabel "CPU Time"
+plot data u 1:6 w l t "User", \
+     data u 1:7 w l t "System", \
+     data u 1:8 w l t "Total"
+EOF
+gnuplot $UNIQNAME.gnuplot
+
 # Done
 wait $PIPID
 echo DONE
