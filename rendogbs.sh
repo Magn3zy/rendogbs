@@ -32,6 +32,7 @@ CONTAINER TYPE (default: --docker)
                             directory
   --image          <image>  Docker image name or singularity/apptainer image
                             file name.
+  --cname           <name>  Container name when run (defaults to rendogbs-v2)
 
 PBS SUPPORT
   --qsub                    Do not run directly but submit as PBS job using qsub
@@ -152,6 +153,7 @@ PBSEND=
 PBSOPTS=
 PBSNAME="-N rendogbs"
 IMAGE=$IMGNAME
+CNAME=""
 
 # Iterate through all command-line options and their arguments
 while [ -n "$1" ] ; do
@@ -187,6 +189,11 @@ while [ -n "$1" ] ; do
 	    IMAGE=$IMGNAME
 	    VMOPT=v
 	    CIDMAP="-e LUID=$(id -u) -e LGID=$(id -g) --rm"
+	    shift
+	    ;;
+	--cname)
+	    CNAME="--name $2"
+	    shift
 	    shift
 	    ;;
 	--qsub)
@@ -411,16 +418,16 @@ if [ -z "$PBSWRAP" ] ; then
     PBSNAME=
 fi
 
+# Ensure that CNAME gets applied only to docker
+if ! [ "$CTYPE" = "docker" ] ; then
+    CNAME=
+fi
+
 # Run the container and pass mappings and arguments to the inner
 # wrapper script.
-echo $PBSWRAP $PBSOPTS $PBSNAME $PBSEND $CCMD run \
-      $VMAPPINGS \
-      $CIDMAP \
-      $IMAGE \
-      $INNER_ARGS
-echo ================================================================
 $PBSWRAP $PBSOPTS $PBSNAME $PBSEND $CCMD run \
-      $VMAPPINGS \
-      $CIDMAP \
-      $IMAGE \
-      $INNER_ARGS
+	 $CNAME \
+	 $VMAPPINGS \
+	 $CIDMAP \
+	 $IMAGE \
+	 $INNER_ARGS
