@@ -1,4 +1,14 @@
 #!/bin/sh
+#
+# benchmark.sh
+#
+# Copyright (c) 2026
+# Eliška Korbová ORCID 0009-0004-1247-0808
+# Dominik Pantůček ORCID 0009-0000-3509-0905
+#
+# Outer script resolving paths and running the requested container.
+#
+
 
 # Inner environment
 IHOME=/home/rendogbs

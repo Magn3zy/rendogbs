@@ -1,4 +1,12 @@
 #!/bin/sh
+#
+# benchmark.sh
+#
+# Copyright (c) 2026
+# Dominik Pantůček ORCID 0009-0000-3509-0905
+#
+# Benchmark wrapper using cgroups for resource accounting.
+#
 
 INITWAIT=10
 UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
