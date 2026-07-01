@@ -144,17 +144,19 @@ echo DONE
 
 # Summary
 echo
-echo Ran with options: "$@"
-echo
-echo Maximum threads: $(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $3}')
-mempeak=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $5}')
-echo Memory peak usage: $((mempeak / 1024 / 1024)) MB
-user_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $6}')
-system_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $7}')
-total_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $8}')
-echo User time: $((user_usec / 1000000)) s
-echo System time: $((system_usec / 1000000)) s
-echo Total time: $((total_usec / 1000000)) s
-echo
-echo Real time: $((rtend - rtstart)) s
+(
+    echo Ran with options: "$@"
+    echo
+    echo Maximum threads: $(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $3}')
+    mempeak=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $5}')
+    echo Memory peak usage: $((mempeak / 1024 / 1024)) MB
+    user_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $6}')
+    system_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $7}')
+    total_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $8}')
+    echo User time: $((user_usec / 1000000)) s
+    echo System time: $((system_usec / 1000000)) s
+    echo Total time: $((total_usec / 1000000)) s
+    echo
+    echo Real time: $((rtend - rtstart)) s
+) | tee $WORKDIR/$UNIQNAME.result
 echo
