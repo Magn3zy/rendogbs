@@ -3,6 +3,7 @@
 INITWAIT=10
 UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
 WORKDIR=.
+CTYPE=docker
 
 # Peek into arguments and extract useful ones
 peek_args() {
@@ -36,23 +37,30 @@ echo pipeline PID is $PIPID
 echo Waiting for docker container $UNIQNAME to start ...
 LONGID=
 attempt=0
-while [ -z "$LONGID" -a $attempt -le $INITWAIT ] ; do
+SCOPE=
+while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
     if [ $attempt -gt 0 ] ; then
 	echo Sleeping 1s ...
 	sleep 1
     fi
     attempt=$((attempt + 1))
     LONGID=$(docker ps --no-trunc -f name=$UNIQNAME --quiet)
+    if [ -n "$LONGID" ] ; then
+	echo Docker container running as $LONGID
+	SCOPE=/sys/fs/cgroup/system.slice/docker-$LONGID.scope
+    fi
 done
 
 # Check
-if [ -z "$LONGID" ] ; then
+if [ -z "$SCOPE" ] ; then
+    echo Cannot get cgroup scope.
     echo Cannot get running Docker container long id, bailing out.
     kill $PIPID
     wait $PIPID
     exit 1
 fi
-echo Docker container running as $LONGID
+
+echo Using scope: $SCOPE
 
 # Parse key-value as list of arguments
 parse_cpustat() {
@@ -79,16 +87,16 @@ parse_cpustat() {
     maxthreads=0
     while ps $PIPID >/dev/null 2>&1 ; do
 	ts=$(date +%s)
-	nthreadss=$(wc -l /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cgroup.threads 2>/dev/null)
+	nthreadss=$(wc -l $SCOPE/cgroup.threads 2>/dev/null)
 	nthreads=${nthreadss%% *}
 	if [ -n "$nthreads" ] ; then
 	    if [ $maxthreads -lt $nthreads ] ; then
 		maxthreads=$nthreads
 	    fi
 	fi
-	mempeak=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.peak 2>/dev/null)
-	memcur=$(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/memory.current 2>/dev/null)
-	parse_cpustat $(cat /sys/fs/cgroup/system.slice/docker-$LONGID.scope/cpu.stat 2>/dev/null)
+	mempeak=$(cat $SCOPE/memory.peak 2>/dev/null)
+	memcur=$(cat $SCOPE/memory.current 2>/dev/null)
+	parse_cpustat $(cat $SCOPE/cpu.stat 2>/dev/null)
 	if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
 	    echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
 	fi
