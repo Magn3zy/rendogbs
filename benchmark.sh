@@ -4,6 +4,7 @@ INITWAIT=10
 UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
 WORKDIR=.
 CTYPE=docker
+RUNWRAP=
 
 # Peek into arguments and extract useful ones
 peek_args() {
@@ -12,6 +13,21 @@ peek_args() {
 	    --workdir)
 		WORKDIR=$2
 		shift
+		shift
+		;;
+	    --singularity)
+		CTYPE=singularity
+		RUNWRAP="systemd-run --scope --user"
+		shift
+		;;
+	    --apptainer)
+		CTYPE=apptainer
+		RUNWRAP="systemd-run --scope --user"
+		shift
+		;;
+	    --docker)
+		CTYPE=docker
+		RUNWRAP=
 		shift
 		;;
 	    *)
@@ -26,35 +42,54 @@ echo Output directory: $WORKDIR
 # Measure "real" time
 rtstart=$(date +%s)
 
-# Start the pipeline as background job which runs the docker container
-sh rendogbs.sh "$@" --cname $UNIQNAME >$WORKDIR/$UNIQNAME.output 2>&1 &
+# Start the pipeline as background job which runs the container
+$RUNWRAP sh rendogbs.sh "$@" --cname $UNIQNAME >$WORKDIR/$UNIQNAME.output 2>&1 &
 
 # Keep the pipeline PID for cleanup upon exit
 PIPID=$!
 echo pipeline PID is $PIPID
 
-# Now wait for docker to start and get the container long id
-echo Waiting for docker container $UNIQNAME to start ...
+# Now wait for the container to start and get the cgroup scope
 LONGID=
 attempt=0
 SCOPE=
-while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
-    if [ $attempt -gt 0 ] ; then
-	echo Sleeping 1s ...
-	sleep 1
-    fi
-    attempt=$((attempt + 1))
-    LONGID=$(docker ps --no-trunc -f name=$UNIQNAME --quiet)
-    if [ -n "$LONGID" ] ; then
-	echo Docker container running as $LONGID
-	SCOPE=/sys/fs/cgroup/system.slice/docker-$LONGID.scope
-    fi
-done
+if [ "$CTYPE" = "docker" ] ; then
+    echo Waiting for docker container $UNIQNAME to start ...
+    while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
+	if [ $attempt -gt 0 ] ; then
+	    echo Sleeping 1s ...
+	    sleep 1
+	fi
+	attempt=$((attempt + 1))
+	LONGID=$(docker ps --no-trunc -f name=$UNIQNAME --quiet)
+	if [ -n "$LONGID" ] ; then
+	    echo Docker container running as $LONGID
+	    SCOPE=/sys/fs/cgroup/system.slice/docker-$LONGID.scope
+	fi
+    done
+else
+    echo Waiting for singularity/apptainer container $UNIQNAME to start ...
+    while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
+	if [ $attempt -gt 0 ] ; then
+	    echo Sleeping 1s ...
+	    sleep 1
+	fi
+	attempt=$((attempt + 1))
+	oliness=$(wc -l $WORKDIR/$UNIQNAME.output)
+	olines=${oliness%% *}
+	if [ $olines -gt 1 ] ; then
+	    SCOPE=/sys/fs/cgroup/$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
+	fi
+    done
+fi
+
+if [ "$CTYPE" = "docker" -a -z "$LONGID" ] ; then
+    echo Cannot get running Docker container long id, bailing out.
+fi
 
 # Check
 if [ -z "$SCOPE" ] ; then
     echo Cannot get cgroup scope.
-    echo Cannot get running Docker container long id, bailing out.
     kill $PIPID
     wait $PIPID
     exit 1
