@@ -26,7 +26,7 @@ echo Output directory: $WORKDIR
 rtstart=$(date +%s)
 
 # Start the pipeline as background job which runs the docker container
-sh rendogbs.sh "$@" --cname $UNIQNAME >/dev/null 2>/dev/null &
+sh rendogbs.sh "$@" --cname $UNIQNAME >$WORKDIR/$UNIQNAME.output 2>&1 &
 
 # Keep the pipeline PID for cleanup upon exit
 PIPID=$!
