@@ -10,17 +10,19 @@ import argparse
 import csv
 import gzip
 import sys
-import numpy as np
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
+import pyfaidx
 
 FragmentRow = tuple[str, int, str, str, int]
 
 _STD_LABELS = [f"{b}-{b + 99}" for b in range(0, 1000, 100)]
 
-_WORKER_REF_SEQS: dict[str, str] | None = None
+_WORKER_REF: pyfaidx.Fasta | None = None  # pyfaidx handle, populated by init_worker
+_WORKER_REF_SEQS: dict[str, str] | None = None  # full dict for small genomes (<5 GB)
+
 
 def open_text(path: Path):
     return gzip.open(path, "rt") if str(path).endswith(".gz") else open(path, "r", encoding="utf-8")
@@ -43,7 +45,6 @@ def read_fasta_contigs(path: Path) -> list[tuple[str, str]]:
             line = raw.rstrip("\n").rstrip("\r")
             if not line:
                 continue
-
             if line.startswith(">"):
                 if header is not None:
                     contigs.append((header, "".join(parts).upper()))
@@ -66,13 +67,29 @@ def read_fasta_contigs(path: Path) -> list[tuple[str, str]]:
 def sort_contigs_by_length(contigs: list[tuple[str, str]]) -> list[tuple[str, str]]:
     return sorted(contigs, key=lambda x: len(x[1]), reverse=True)
 
+# .fai format: accession, length, offset, bases_per_line, bytes_per_line
+def read_contig_lengths_from_fai(fai_path: Path) -> list[tuple[str, str]]: # contig names and lengths directly from .fai index
+    contigs = []
+    with open(fai_path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("	")
+            if len(parts) < 2:
+                continue
+            acc = parts[0]
+            length = int(parts[1])
+            contigs.append((acc, "X" * length))  # dummy seq of correct length for sorting
+    return contigs
+
 
 def write_contig_lengths_txt(contigs_sorted: list[tuple[str, str]], results_dir: Path) -> Path:
     out_path = results_dir / "contig_lengths.txt"
     with open(out_path, "w", encoding="utf-8", newline="") as fh:
         fh.write("accession\tlength_bp\n")
         for acc, seq in contigs_sorted:
-            fh.write(f"{acc}\t{len(seq)}\n")
+            fh.write(f"{acc}\t{len(seq)}\n")  # len() works for both real seq and dummy placeholder
     print(f"  [INFO] contig_lengths.txt -> {out_path}")
     return out_path
 
@@ -93,21 +110,19 @@ def load_combinations_csv(path: Path) -> list[str]:
         combos = [f"{row['enzyme_a']}_{row['enzyme_b']}" for row in reader]
     return combos
 
-# Je prý ok řešení, ale mám jako scaling point zmínit, že list je náročný na RAM, takže by tě možná mohla do budoucna zajímat streamovací varianta (csv.DictReader)  
+
 def read_fragments_csv(path: Path) -> list[FragmentRow]:
     with open(path, "r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
-        rows: list[FragmentRow] = [] 
+        rows: list[FragmentRow] = []
         for row in reader:
-            rows.append(
-                (
-                    row["accession"],
-                    int(row["start_pos"]),
-                    row["start_enzyme"],
-                    row["end_enzyme"],
-                    int(row["fragment_length"]),
-                )
-            )
+            rows.append((
+                row["accession"],
+                int(row["start_pos"]),
+                row["start_enzyme"],
+                row["end_enzyme"],
+                int(row["fragment_length"]),
+            ))
     return rows
 
 
@@ -151,15 +166,27 @@ def write_distribution_csv(combo_dir: Path, rows: list[list[Any]]) -> Path:
         w.writerows(rows)
     return out_path
 
+# fragment sequences either via pyfaidx (large genomes) or from the in-memory dict (small genomes), # treshold 5GB, need to test it
+def compute_gc_stats(filtered: list[FragmentRow], _: Any) -> dict[str, Any]:
+    global _WORKER_REF, _WORKER_REF_SEQS
 
-def compute_gc_stats(filtered: list[FragmentRow], ref_seqs: dict[str, str]) -> dict[str, Any]:
     gc_vals: list[float] = []
 
     for acc, start, _, _, fl in filtered:
-        frag_seq = ref_seqs.get(acc, "")[start : start + fl]
+        try:
+            if _WORKER_REF is not None:
+                # large genome path: read only required interval from disk
+                frag_seq = str(_WORKER_REF[acc][start:start + fl])
+            elif _WORKER_REF_SEQS is not None:
+                # small genome path: direct dict lookup
+                frag_seq = _WORKER_REF_SEQS.get(acc, "")[start:start + fl]
+            else:
+                continue
+        except Exception:
+            continue
+
         if frag_seq:
             gc_vals.append(gc_content(frag_seq))
-            # JC: Může se stát, že start + fl > len(seq)? Pokud ano, jak se pak počítá GC?
 
     if not gc_vals:
         return {
@@ -171,6 +198,7 @@ def compute_gc_stats(filtered: list[FragmentRow], ref_seqs: dict[str, str]) -> d
             "gc_std_pct":    "n/a",
         }
 
+    import numpy as np
     gc_array = np.array(gc_vals)
     pct = lambda v: f"{v * 100:.2f}"
 
@@ -194,14 +222,33 @@ def write_gc_csv(combo_dir: Path, gc_stats: dict[str, Any]) -> Path:
     return out_path
 
 
-def init_worker(ref_path: str) -> None:
-    global _WORKER_REF_SEQS
-    _WORKER_REF_SEQS = {acc: seq for acc, seq in read_fasta_contigs(Path(ref_path))}
+def needs_faidx(ref_path: Path) -> bool: # Return True if genome is  >5 GB
+    return ref_path.stat().st_size / 1e9 > 5.0
+
+# Build .fai index into results_dir
+def ensure_fai_index(ref_path: Path, results_dir: Path) -> Path:
+    fai = results_dir / (ref_path.name + ".fai")
+    if not fai.exists():
+        print(f"  [INFO] Creating .fai index -> {fai}")
+        print(f"         (one-time only, may take a few minutes for large genomes)")
+        pyfaidx.Fasta(str(ref_path), indexname=str(fai)) 
+        print(f"  [INFO] Index created")
+    else:
+        print(f"  [INFO] .fai index found: {fai}")
+    return fai
+
+# Initialise per-worker reference access
+def init_worker(ref_path: str, fai_path: str | None, use_faidx: bool) -> None:
+    global _WORKER_REF, _WORKER_REF_SEQS
+    if use_faidx:
+        # on-demand disk access — index stored in results/, ref may be read-only
+        _WORKER_REF = pyfaidx.Fasta(ref_path, indexname=fai_path, rebuild=False)
+    else:
+        # full in-memory load — fast for small genomes, acceptable RAM usage
+        _WORKER_REF_SEQS = {acc: seq for acc, seq in read_fasta_contigs(Path(ref_path))}
 
 
 def process_combination(combo_name: str, results_dir: str, size_low: int, size_high: int) -> dict[str, Any]:
-    global _WORKER_REF_SEQS
-
     results_path = Path(results_dir)
     combo_dir = results_path / combo_name
     fragments_path = combo_dir / "fragments.csv"
@@ -225,16 +272,13 @@ def process_combination(combo_name: str, results_dir: str, size_low: int, size_h
     )
     write_distribution_csv(combo_dir, dist_rows)
 
-    if _WORKER_REF_SEQS is None:
-        raise RuntimeError("Reference sequences were not initialized in worker")
-
-    gc_stats = compute_gc_stats(filtered, _WORKER_REF_SEQS)
+    gc_stats = compute_gc_stats(filtered, None)
     write_gc_csv(combo_dir, gc_stats)
 
     return {
-        "combo": combo_name,
-        "fragments": len(fragments),
-        "filtered": len(filtered),
+        "combo":       combo_name,
+        "fragments":   len(fragments),
+        "filtered":    len(filtered),
         "gc_mean_pct": gc_stats.get("gc_mean_pct", "n/a"),
     }
 
@@ -243,10 +287,10 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="postprocess_metrics.py",
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--workdir", required=True)
-    p.add_argument("--ref", required=True)
+    p.add_argument("--workdir",  required=True)
+    p.add_argument("--ref",      required=True)
     p.add_argument("--parallel", type=int, default=2)
-    p.add_argument("--size", required=True)
+    p.add_argument("--size",     required=True)
     return p.parse_args()
 
 
@@ -261,9 +305,9 @@ def main() -> None:
     except ValueError as e:
         raise SystemExit(f"[ERROR] {e}")
 
-    workdir = Path(args.workdir)
-    results_dir = workdir / "results"
-    ref_path = Path(args.ref)
+    workdir          = Path(args.workdir)
+    results_dir      = workdir / "results"
+    ref_path         = Path(args.ref)
     combinations_csv = results_dir / "combinations.csv"
 
     if not results_dir.exists():
@@ -271,8 +315,23 @@ def main() -> None:
     if not ref_path.exists():
         raise SystemExit(f"[ERROR] reference FASTA not found: {ref_path}")
 
-    print(f"\n[1/4] Loading reference: {ref_path}")
-    contigs_sorted = sort_contigs_by_length(read_fasta_contigs(ref_path))
+    # decide reference access strategy based on genome size
+    use_faidx = needs_faidx(ref_path)  # True for genomes >5 GB
+    fai_path: str | None = None
+
+    if use_faidx:
+        print(f"  [INFO] Large genome detected ({ref_path.stat().st_size / 1e9:.1f} GB) — using pyfaidx on-demand access")
+        fai_path = str(ensure_fai_index(ref_path, results_dir))  # index into results/
+    else:
+        print(f"  [INFO] Small genome ({ref_path.stat().st_size / 1e9:.1f} GB) — loading into memory")
+
+    print(f"\n[1/4] Building contig lengths table ...")
+    if use_faidx and fai_path:
+        # large genome: read lengths directly from .fai
+        contigs_sorted = sort_contigs_by_length(read_contig_lengths_from_fai(Path(fai_path)))
+    else:
+        # small genome: parse FASTA
+        contigs_sorted = sort_contigs_by_length(read_fasta_contigs(ref_path))
     total_bases = sum(len(seq) for _, seq in contigs_sorted)
     print(f"      {len(contigs_sorted)} contigs | {total_bases:,} bp total")
     write_contig_lengths_txt(contigs_sorted, results_dir)
@@ -285,14 +344,15 @@ def main() -> None:
         combo_dir = results_dir / combo_name
         if not combo_dir.is_dir():
             raise SystemExit(f"[ERROR] Missing combination directory: {combo_dir}")
-            # Určitě k tomu máš důvod, takže spíš zvědavosti: proč v tomto skriptu využíváš if-raise, když jinde bylo if-continue, případně nějaká poznámka? 
-            # Jsou ty chybějící věci v této části tak kritické, že se musí přerušit celý run?
 
     print(f"\n[3/4] Processing {len(combo_names)} combination(s) | parallel={args.parallel} | size={size_low}-{size_high}\n")
 
     results: list[dict[str, Any]] = []
-    # Copilot upozorňuje, že FASTA takto načítá 1x main process a Nx workers, takže se může reálně stát, že bude potřeba 24 GB paměti. Tohle pouze papouškuju, takže zvaž podle sebe. 
-    with ProcessPoolExecutor(max_workers=args.parallel, initializer=init_worker, initargs=(str(ref_path),)) as executor:
+    with ProcessPoolExecutor(
+        max_workers=args.parallel,
+        initializer=init_worker,
+        initargs=(str(ref_path), fai_path, use_faidx),  # pass strategy to each worker
+    ) as executor:
         futures = {
             executor.submit(process_combination, combo, str(results_dir), size_low, size_high): combo
             for combo in combo_names

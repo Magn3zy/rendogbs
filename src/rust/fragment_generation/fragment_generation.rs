@@ -7,6 +7,7 @@
 use std::{
     collections::HashMap,
     fs,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -25,15 +26,6 @@ struct Cut {
     accession: String,
     pos:       i64,
     enzyme:    String,
-}
-
-#[derive(Clone, Debug)]
-struct Fragment {
-    accession:       String,
-    start_pos:       i64,
-    start_enzyme:    String,
-    end_enzyme:      String,
-    fragment_length: i64,
 }
 
 #[derive(Parser)]
@@ -97,15 +89,22 @@ fn build_cuts_cache(out_dir: &Path, combos: &[Combination]) -> HashMap<String, V
         let key = format!("{}_{}", combo.enzyme_a, combo.enzyme_b);
         let cuts_path = out_dir.join(&key).join("cuts.csv");
         assert!(cuts_path.exists(), "Missing cuts.csv: {:?}", cuts_path);
-
         cache.insert(key, load_cuts(&cuts_path));
     }
 
     cache
 }
 
-fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
-    let mut fragments = Vec::new();
+fn write_fragments_and_verify(path: &Path, cuts: &[Cut]) -> u64 {
+    // stream fragments directly to BufWriter — no intermediate Vec<Fragment>
+    let file = fs::File::create(path)
+        .unwrap_or_else(|_| panic!("Cannot create {:?}", path));
+    let mut out = BufWriter::new(file); // flushes in chunks not per row
+
+    writeln!(out, "accession,start_pos,start_enzyme,end_enzyme,fragment_length")
+        .expect("Failed to write CSV header");
+
+    let mut written: u64 = 0; // count rows as we write, not after
 
     for window in cuts.windows(2) {
         let a = &window[0];
@@ -118,28 +117,37 @@ fn find_fragments(cuts: &[Cut]) -> Vec<Fragment> {
             continue;
         }
 
-        fragments.push(Fragment {
-            accession:       a.accession.clone(),
-            start_pos:       a.pos,
-            start_enzyme:    a.enzyme.clone(),
-            end_enzyme:      b.enzyme.clone(),
-            fragment_length: b.pos - a.pos,
-        });
+        writeln!(
+            out,
+            "{},{},{},{},{}",
+            a.accession,
+            a.pos,
+            a.enzyme,
+            b.enzyme,
+            b.pos - a.pos,
+        )
+        .expect("Failed to write CSV row");
+
+        written += 1;
     }
 
-    fragments
-}
+    // explicit flush before verify — ensures all buffered bytes hit the file
+    out.flush().expect("Failed to flush BufWriter");
 
-fn write_fragments_csv(path: &Path, frags: &[Fragment]) {
-    let mut out = String::with_capacity(frags.len() * 64);
-    out.push_str("accession,start_pos,start_enzyme,end_enzyme,fragment_length\n");
-    for f in frags {
-        out.push_str(&format!(
-            "{},{},{},{},{}\n",
-            f.accession, f.start_pos, f.start_enzyme, f.end_enzyme, f.fragment_length
-        ));
+    // integrity check: count newlines in written file vs expected row count
+    let content = fs::read(path)
+        .unwrap_or_else(|_| panic!("Cannot read back {:?}", path));
+    let actual = content.iter().filter(|&&b| b == b'\n').count() as u64 - 1;
+
+    if actual != written {
+        eprintln!(
+            "[MISMATCH] {:?}: expected {} fragment rows, got {} newlines",
+            path, written, actual
+        );
+        std::process::exit(1); // error 1
     }
-    fs::write(path, &out).unwrap_or_else(|_| panic!("Cannot write {:?}", path));
+
+    written
 }
 
 fn process_combo(
@@ -153,11 +161,10 @@ fn process_combo(
         .get(&key)
         .unwrap_or_else(|| panic!("Missing combo in cache: {}", key));
 
-    let fragments = find_fragments(cuts);
+    let out_path = out_dir.join(&key).join("fragments.csv");
+    let n = write_fragments_and_verify(&out_path, cuts);
 
-    write_fragments_csv(&out_dir.join(&key).join("fragments.csv"), &fragments);
-
-    println!("[OK] {} -> fragments: {}", key, fragments.len());
+    println!("[OK] {} -> fragments: {}", key, n);
 }
 
 fn main() {
