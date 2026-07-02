@@ -14,7 +14,8 @@
 
 FROM alpine:latest
 
-RUN apk add --no-cache python3 py3-numpy py3-matplotlib py3-pandas
+RUN apk add --no-cache python3 py3-numpy py3-matplotlib py3-pandas py3-pip \
+    && pip install --no-cache-dir --break-system-packages pyfaidx 
 
 COPY src/rendogbs_user.sh /home/rendogbs/
 RUN chmod +x /home/rendogbs/rendogbs_user.sh
