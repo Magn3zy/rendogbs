@@ -100,6 +100,9 @@ if [ $DOPBS -eq 1 -a $WRAPPED -eq 0 ] ; then
     exit 0
 else
     # Start the pipeline as background job which runs the container
+    if [ $WRAPPED -eq 1 ] ; then
+	RUNWRAP=
+    fi
     $RUNWRAP \
 	sh rendogbs.sh \
 	$SCRIPTARGS \
