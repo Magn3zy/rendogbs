@@ -133,7 +133,8 @@ if [ "$CTYPE" = "docker" ] ; then
 else
     echo Waiting for singularity/apptainer container $UNIQNAME to start ...
     while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
-	ps axf
+	ps xf
+	ls $WORKDIR
 	if [ $attempt -gt 0 ] ; then
 	    echo Sleeping 1s ...
 	    sleep 1
