@@ -38,6 +38,33 @@ while [ -n "$1" ] ; do
 	    shift
 	    shift
 	    ;;
+	--ref)
+	    OREF=`readlink -f "$wd/$2"`
+	    if [ -z "$OREF" ] ; then
+		OREF=`readlink -f "$2"`
+	    fi
+	    SCRIPTARGS="$SCRIPTARGS $1 $OREF"
+	    shift
+	    shift
+	    ;;
+	--combinations-file)
+	    OCFILE=`readlink -f "$wd/$2"`
+	    if [ -z "$OCFILE" ] ; then
+		OCFILE=`readlink -f "$2"`
+	    fi
+	    SCRIPTARGS="$SCRIPTARGS $1 $OCFILE"
+	    shift
+	    shift
+	    ;;
+	--annotation|--te)
+	    OFILE=`readlink -f "$wd/$2"`
+	    if [ -z "$OFILE" ] ; then
+		OFILE=`readlink -f "$2"`
+	    fi
+	    SCRIPTARGS="$SCRIPTARGS $1 $OFILE"
+	    shift
+	    shift
+	    ;;
 	--singularity)
 	    SCRIPTARGS="$SCRIPTARGS $1"
 	    CTYPE=singularity
