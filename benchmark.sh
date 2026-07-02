@@ -8,55 +8,99 @@
 # Benchmark wrapper using cgroups for resource accounting.
 #
 
+echo ================================================================
+echo RUNNING ARGS "$@"
+
 INITWAIT=10
 UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
 WORKDIR=.
 CTYPE=docker
 RUNWRAP=
+SCRIPTARGS=
+DOPBS=0
+WRAPPED=0
+WRAPARGS=
 
-# Peek into arguments and extract useful ones
-peek_args() {
-    while [ -n "$1" ] ; do
-	case $1 in
-	    --workdir)
-		WORKDIR=$2
-		shift
-		shift
-		;;
-	    --singularity)
-		CTYPE=singularity
-		RUNWRAP="systemd-run --scope --user"
-		shift
-		;;
-	    --apptainer)
-		CTYPE=apptainer
-		RUNWRAP="systemd-run --scope --user"
-		shift
-		;;
-	    --docker)
-		CTYPE=docker
-		RUNWRAP=
-		shift
-		;;
-	    *)
-		shift
-		;;
-	esac
-    done
-}
-peek_args "$@"
+while [ -n "$1" ] ; do
+    case $1 in
+	--benchmark-wrapped)
+	    WRAPPED=1
+	    shift
+	    ;;
+	--workdir)
+	    SCRIPTARGS="$SCRIPTARGS $1 $2"
+	    WORKDIR=$2
+	    shift
+	    shift
+	    ;;
+	--singularity)
+	    SCRIPTARGS="$SCRIPTARGS $1"
+	    CTYPE=singularity
+	    RUNWRAP="systemd-run --scope --user"
+	    shift
+	    ;;
+	--apptainer)
+	    SCRIPTARGS="$SCRIPTARGS $1"
+	    CTYPE=apptainer
+	    RUNWRAP="systemd-run --scope --user"
+	    shift
+	    ;;
+	--docker)
+	    SCRIPTARGS="$SCRIPTARGS $1"
+	    CTYPE=docker
+	    RUNWRAP=
+	    shift
+	    ;;
+	--qsub)
+	    if [ $WRAPPED -eq 0 ] ; then
+		SCRIPTARGS="--benchmark-wrapped $SCRIPTARGS"
+		DOPBS=1
+	    fi
+	    shift
+	    ;;
+	--limits|-l)
+	    WRAPARGS="$WRAPARGS $1 $2"
+	    shift
+	    shift
+	    ;;
+	--interactive|-I)
+	    WRAPARGS="$WRAPARGS $1"
+	    shift
+	    ;;
+	--name|-N)
+	    WRAPARGS="$WRAPARGS $1 $2"
+	    shift
+	    shift
+	    ;;
+	*)
+	    SCRIPTARGS="$SCRIPTARGS $1"
+	    shift
+	    ;;
+    esac
+done
 echo Output directory: $WORKDIR
+
+if ! [ -d "$WORKDIR" ] ; then
+    mkdir $WORKDIR
+fi
 
 # Measure "real" time
 rtstart=$(date +%s)
 
-# Start the pipeline as background job which runs the container
-$RUNWRAP \
-    sh rendogbs.sh \
-    "$@" \
-    --cname $UNIQNAME \
-    --benchmark-sleep \
-    >$WORKDIR/$UNIQNAME.output 2>&1 &
+if [ $DOPBS -eq 1 ] ; then
+    # Queue the job
+    qsub $WRAPARGS sh $0 $SCRIPTARGS
+    echo Job queued.
+    exit 0
+else
+    # Start the pipeline as background job which runs the container
+    $RUNWRAP \
+	sh rendogbs.sh \
+	$SCRIPTARGS \
+	--cname $UNIQNAME \
+	--benchmark-sleep \
+	>$WORKDIR/$UNIQNAME.output 2>&1 &
+fi
 
 # Keep the pipeline PID for cleanup upon exit
 PIPID=$!
