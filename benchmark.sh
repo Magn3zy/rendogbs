@@ -227,6 +227,7 @@ parse_cpustat() {
 (
     echo "#TS THREADS MAXTHREADS MEMORY MAXMEMORY USER SYSTEM TOTAL"
     maxthreads=0
+    mempeak=0
     while ps $PIPID >/dev/null 2>&1 ; do
 	ts=$(date +%s)
 	if [ "$SCOPE" = "PBS" ] ; then
@@ -309,7 +310,7 @@ echo DONE
 # Summary
 echo
 (
-    echo Ran with options: "$@"
+    echo Ran with options: $SCRIPTARGS
     echo
     echo Maximum threads: $(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $3}')
     mempeak=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $5}')
