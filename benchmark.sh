@@ -183,7 +183,6 @@ else
 	    else
 		SCOPE=PBS
 		CGROUP=$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
-		mount
 		# find /sys/fs -ipath "/sys*$SCOPE*"
 	    fi
 	fi
@@ -254,9 +253,9 @@ parse_cpustat() {
 		maxthreads=$nthreads
 	    fi
 	fi
-	if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
+	#if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
 	    echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
-	fi
+	#fi
 	sleep 1
     done
 ) | tee $WORKDIR/$UNIQNAME.data
