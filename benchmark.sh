@@ -87,7 +87,7 @@ fi
 # Measure "real" time
 rtstart=$(date +%s)
 
-if [ $DOPBS -eq 1 ] ; then
+if [ $DOPBS -eq 1 -a $WRAPPED -eq 0 ] ; then
     # Queue the job
     SCRIPTPATH=`readlink -f $0`
     qsub $WRAPARGS -- /bin/sh $SCRIPTPATH $SCRIPTARGS
