@@ -223,6 +223,21 @@ parse_cpustat() {
     done
 }
 
+parse_pbsstat() {
+   while ! [ -z "$2" ] ; do
+	case $1 in
+	    user)
+		user_usec=$2
+		;;
+	    system)
+		system_usec=$2
+		;;
+	esac
+	shift
+	shift
+    done
+}
+
 # Periodically print the stats
 (
     echo "#TS THREADS MAXTHREADS MEMORY MAXMEMORY USER SYSTEM TOTAL"
@@ -232,9 +247,8 @@ parse_cpustat() {
 	ts=$(date +%s)
 	if [ "$SCOPE" = "PBS" ] ; then
 	    # PBS as on Metacentrum
-	    usage_usec=$(cat /sys/fs/cgroup/cpu,cpuacct/$GROUP/cpuacct.usage)
-	    system_usec=0
-	    user_usec=$usage_usec
+	    parse_pbsstat $(cat /sys/fs/cgroup/cpu,cpuacct/$GROUP/cpuacct.stat)
+	    usage_usec=$((user_usec + system_usec))
 	    nthreads=0
 	    memcur=$(cat /sys/fs/cgroup/memory/$CGROUP/memory.max_usage_in_bytes)
 	    if [ $memcur -gt $mempeak ] ; then
@@ -248,6 +262,9 @@ parse_cpustat() {
 	    mempeak=$(cat $SCOPE/memory.peak 2>/dev/null)
 	    memcur=$(cat $SCOPE/memory.current 2>/dev/null)
 	    parse_cpustat $(cat $SCOPE/cpu.stat 2>/dev/null)
+	    user_usec=$((user_usec/1000000))
+	    system_usec=$((system_usec/1000000))
+	    usage_usec=$((usage_usec/1000000))
 	fi
 	if [ -n "$nthreads" ] ; then
 	    if [ $maxthreads -lt $nthreads ] ; then
@@ -293,9 +310,9 @@ set title 'CPU Time Usage'
 unset y2label
 unset y2tics
 set ylabel "CPU Time [s]"
-plot data u 1:(\$6/1000000) w l t "User", \
-     data u 1:(\$7/1000000) w l t "System", \
-     data u 1:(\$8/1000000) w l t "Total"
+plot data u 1:6 w l t "User", \
+     data u 1:7 w l t "System", \
+     data u 1:8 w l t "Total"
 EOF
 owd=$(pwd)
 cd $WORKDIR
@@ -318,9 +335,9 @@ echo
     user_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $6}')
     system_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $7}')
     total_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $8}')
-    echo User time: $((user_usec / 1000000)) s
-    echo System time: $((system_usec / 1000000)) s
-    echo Total time: $((total_usec / 1000000)) s
+    echo User time: $user_usec s
+    echo System time: $system_usec s
+    echo Total time: $total_usec s
     echo
     echo Real time: $((rtend - rtstart)) s
 ) | tee $WORKDIR/$UNIQNAME.result
