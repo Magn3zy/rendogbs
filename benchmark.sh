@@ -21,6 +21,8 @@ DOPBS=0
 WRAPPED=0
 WRAPARGS=
 
+wd=`pwd`
+
 while [ -n "$1" ] ; do
     case $1 in
 	--benchmark-wrapped)
@@ -28,8 +30,11 @@ while [ -n "$1" ] ; do
 	    shift
 	    ;;
 	--workdir)
-	    SCRIPTARGS="$SCRIPTARGS $1 $2"
-	    WORKDIR=$2
+	    WORKDIR=`readlink -f "$wd/$2"`
+	    if [ -z "$WORKDIR" ] ; then
+		WORKDIR=`readlink -f "$2"`
+	    fi
+	    SCRIPTARGS="$SCRIPTARGS $1 $WORKDIR"
 	    shift
 	    shift
 	    ;;
