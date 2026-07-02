@@ -166,9 +166,6 @@ if [ "$CTYPE" = "docker" ] ; then
 else
     echo Waiting for singularity/apptainer container $UNIQNAME to start ...
     while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
-	ps xf
-	ls $WORKDIR
-	ls /proc/$PIPID
 	cat /proc/$PIPID/cgroup
 	if [ $attempt -gt 0 ] ; then
 	    echo Sleeping 1s ...
@@ -181,7 +178,11 @@ else
 	    olines=0
 	fi
 	if [ $olines -gt 1 ] ; then
-	    SCOPE=/sys/fs/cgroup/$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
+	    if [ $WRAPPED -eq 0 ] ; then
+		SCOPE=/sys/fs/cgroup/$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
+	    else
+		SCOPE=/sys/fs/cgroup/$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
+	    fi
 	fi
     done
 fi
