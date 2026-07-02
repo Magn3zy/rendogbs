@@ -166,7 +166,6 @@ if [ "$CTYPE" = "docker" ] ; then
 else
     echo Waiting for singularity/apptainer container $UNIQNAME to start ...
     while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
-	cat /proc/$PIPID/cgroup
 	if [ $attempt -gt 0 ] ; then
 	    echo Sleeping 1s ...
 	    sleep 1
@@ -182,6 +181,7 @@ else
 		SCOPE=/sys/fs/cgroup/$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
 	    else
 		SCOPE=/sys/fs/cgroup/$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
+		find /sys/fs -ipath "/sys*$SCOPE*"
 	    fi
 	fi
     done
