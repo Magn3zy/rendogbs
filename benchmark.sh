@@ -247,7 +247,7 @@ parse_pbsstat() {
 	ts=$(date +%s)
 	if [ "$SCOPE" = "PBS" ] ; then
 	    # PBS as on Metacentrum
-	    parse_pbsstat $(cat /sys/fs/cgroup/cpu,cpuacct/$GROUP/cpuacct.stat)
+	    parse_pbsstat $(cat /sys/fs/cgroup/cpu,cpuacct/$CGROUP/cpuacct.stat)
 	    usage_usec=$((user_usec + system_usec))
 	    nthreads=0
 	    memcur=$(cat /sys/fs/cgroup/memory/$CGROUP/memory.max_usage_in_bytes)
