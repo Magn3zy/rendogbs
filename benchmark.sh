@@ -135,6 +135,8 @@ else
     while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
 	ps xf
 	ls $WORKDIR
+	ls /proc/$PIPID
+	cat /proc/$PIPID/cgroup
 	if [ $attempt -gt 0 ] ; then
 	    echo Sleeping 1s ...
 	    sleep 1
