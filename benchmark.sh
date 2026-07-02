@@ -89,7 +89,7 @@ rtstart=$(date +%s)
 
 if [ $DOPBS -eq 1 ] ; then
     # Queue the job
-    qsub $WRAPARGS -- sh $0 $SCRIPTARGS
+    qsub $WRAPARGS -- /bin/sh $0 $SCRIPTARGS
     echo Job queued.
     exit 0
 else
