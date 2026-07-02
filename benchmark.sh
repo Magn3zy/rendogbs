@@ -100,11 +100,14 @@ if [ $DOPBS -eq 1 -a $WRAPPED -eq 0 ] ; then
     exit 0
 else
     # Start the pipeline as background job which runs the container
+    SCRIPT=rendogbs.sh
     if [ $WRAPPED -eq 1 ] ; then
 	RUNWRAP=
+	BDIR=${0%/*}
+	SCRIPT="$BDIR/$SCRIPT"
     fi
     $RUNWRAP \
-	sh rendogbs.sh \
+	sh $SCRIPT \
 	$SCRIPTARGS \
 	--cname $UNIQNAME \
 	--benchmark-sleep \
