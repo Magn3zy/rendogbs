@@ -178,10 +178,13 @@ else
 	fi
 	if [ $olines -gt 1 ] ; then
 	    if [ $WRAPPED -eq 0 ] ; then
-		SCOPE=/sys/fs/cgroup/$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
+		CGROUP=$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
+		SCOPE=/sys/fs/cgroup/$CGROUP
 	    else
-		SCOPE=/sys/fs/cgroup/$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
-		find /sys/fs -ipath "/sys*$SCOPE*"
+		SCOPE=PBS
+		CGROUP=$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
+		mount
+		# find /sys/fs -ipath "/sys*$SCOPE*"
 	    fi
 	fi
     done
@@ -200,6 +203,7 @@ if [ -z "$SCOPE" ] ; then
 fi
 
 echo Using scope: $SCOPE
+echo Using cgroup: $CGROUP
 
 # Parse key-value as list of arguments
 parse_cpustat() {
@@ -226,16 +230,30 @@ parse_cpustat() {
     maxthreads=0
     while ps $PIPID >/dev/null 2>&1 ; do
 	ts=$(date +%s)
-	nthreadss=$(wc -l $SCOPE/cgroup.threads 2>/dev/null)
-	nthreads=${nthreadss%% *}
+	if [ "$SCOPE" = "PBS" ] ; then
+	    # PBS as on Metacentrum
+	    usage_usec=$(cat /sys/fs/cgroup/cpu,cpuacct/$GROUP/cpuacct.usage)
+	    system_usec=0
+	    user_usec=$usage_usec
+	    nthreads=0
+	    memcur=$(cat /sys/fs/cgroup/memory/$CGROUP/memory.max_usage_in_bytes)
+	    if [ $memcur -gt $mempeak ] ; then
+		mempeak=$memcur
+	    fi
+	    true
+	else
+	    # Ubuntu/Debian default cgroups
+	    nthreadss=$(wc -l $SCOPE/cgroup.threads 2>/dev/null)
+	    nthreads=${nthreadss%% *}
+	    mempeak=$(cat $SCOPE/memory.peak 2>/dev/null)
+	    memcur=$(cat $SCOPE/memory.current 2>/dev/null)
+	    parse_cpustat $(cat $SCOPE/cpu.stat 2>/dev/null)
+	fi
 	if [ -n "$nthreads" ] ; then
 	    if [ $maxthreads -lt $nthreads ] ; then
 		maxthreads=$nthreads
 	    fi
 	fi
-	mempeak=$(cat $SCOPE/memory.peak 2>/dev/null)
-	memcur=$(cat $SCOPE/memory.current 2>/dev/null)
-	parse_cpustat $(cat $SCOPE/cpu.stat 2>/dev/null)
 	if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
 	    echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
 	fi
