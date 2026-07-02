@@ -128,6 +128,7 @@ if [ "$CTYPE" = "docker" ] ; then
 else
     echo Waiting for singularity/apptainer container $UNIQNAME to start ...
     while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
+	ps axf
 	if [ $attempt -gt 0 ] ; then
 	    echo Sleeping 1s ...
 	    sleep 1
@@ -135,6 +136,9 @@ else
 	attempt=$((attempt + 1))
 	oliness=$(wc -l $WORKDIR/$UNIQNAME.output)
 	olines=${oliness%% *}
+	if [ -z "$olines" ] ; then
+	    olines=0
+	fi
 	if [ $olines -gt 1 ] ; then
 	    SCOPE=/sys/fs/cgroup/$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
 	fi
