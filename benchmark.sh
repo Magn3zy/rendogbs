@@ -12,7 +12,6 @@ echo ================================================================
 echo RUNNING ARGS "$@"
 
 INITWAIT=10
-UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
 WORKDIR=.
 CTYPE=docker
 RUNWRAP=
@@ -20,6 +19,7 @@ SCRIPTARGS=
 DOPBS=0
 WRAPPED=0
 WRAPARGS=
+REPEATS=1
 
 wd=`pwd`
 
@@ -27,6 +27,11 @@ while [ -n "$1" ] ; do
     case $1 in
 	--benchmark-wrapped)
 	    WRAPPED=1
+	    shift
+	    ;;
+	--repeats)
+	    REPEATS=$2
+	    shift
 	    shift
 	    ;;
 	--workdir)
@@ -116,170 +121,176 @@ if ! [ -d "$WORKDIR" ] ; then
     mkdir $WORKDIR
 fi
 
-# Measure "real" time
-rtstart=$(date +%s)
+for repnum in `seq 1 $REPEATS` ; do
 
-if [ $DOPBS -eq 1 -a $WRAPPED -eq 0 ] ; then
-    # Queue the job
-    SCRIPTPATH=`readlink -f $0`
-    qsub $WRAPARGS -- /bin/sh $SCRIPTPATH $SCRIPTARGS
-    echo Job queued.
-    exit 0
-else
-    # Start the pipeline as background job which runs the container
-    SCRIPT=rendogbs.sh
-    if [ $WRAPPED -eq 1 ] ; then
-	RUNWRAP=
-	BDIR=${0%/*}
-	SCRIPT="$BDIR/$SCRIPT"
+    UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
+
+    CONFIG_HZ=$(zgrep ^CONFIG_HZ= /proc/config.gz |sed 's/^.*=//')
+
+    # Measure "real" time
+    rtstart=$(date +%s)
+
+    if [ $DOPBS -eq 1 -a $WRAPPED -eq 0 ] ; then
+	# Queue the job
+	SCRIPTPATH=`readlink -f $0`
+	qsub $WRAPARGS -- /bin/sh $SCRIPTPATH --repeats $REPEATS $SCRIPTARGS
+	echo Job queued.
+	exit 0
+    else
+	# Start the pipeline as background job which runs the container
+	SCRIPT=rendogbs.sh
+	if [ $WRAPPED -eq 1 ] ; then
+	    RUNWRAP=
+	    BDIR=${0%/*}
+	    SCRIPT="$BDIR/$SCRIPT"
+	fi
+	$RUNWRAP \
+	    sh $SCRIPT \
+	    $SCRIPTARGS \
+	    --cname $UNIQNAME \
+	    --benchmark-sleep \
+	    >$WORKDIR/$UNIQNAME.output 2>&1 &
     fi
-    $RUNWRAP \
-	sh $SCRIPT \
-	$SCRIPTARGS \
-	--cname $UNIQNAME \
-	--benchmark-sleep \
-	>$WORKDIR/$UNIQNAME.output 2>&1 &
-fi
 
-# Keep the pipeline PID for cleanup upon exit
-PIPID=$!
-echo pipeline PID is $PIPID
+    # Keep the pipeline PID for cleanup upon exit
+    PIPID=$!
+    echo pipeline PID is $PIPID
 
-# Now wait for the container to start and get the cgroup scope
-LONGID=
-attempt=0
-SCOPE=
-if [ "$CTYPE" = "docker" ] ; then
-    echo Waiting for docker container $UNIQNAME to start ...
-    while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
-	if [ $attempt -gt 0 ] ; then
-	    echo Sleeping 1s ...
-	    sleep 1
-	fi
-	attempt=$((attempt + 1))
-	LONGID=$(docker ps --no-trunc -f name=$UNIQNAME --quiet)
-	if [ -n "$LONGID" ] ; then
-	    echo Docker container running as $LONGID
-	    SCOPE=/sys/fs/cgroup/system.slice/docker-$LONGID.scope
-	fi
-    done
-else
-    echo Waiting for singularity/apptainer container $UNIQNAME to start ...
-    while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
-	if [ $attempt -gt 0 ] ; then
-	    echo Sleeping 1s ...
-	    sleep 1
-	fi
-	attempt=$((attempt + 1))
-	oliness=$(wc -l $WORKDIR/$UNIQNAME.output)
-	olines=${oliness%% *}
-	if [ -z "$olines" ] ; then
-	    olines=0
-	fi
-	if [ $olines -gt 1 ] ; then
-	    if [ $WRAPPED -eq 0 ] ; then
-		CGROUP=$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
-		SCOPE=/sys/fs/cgroup/$CGROUP
+    # Now wait for the container to start and get the cgroup scope
+    LONGID=
+    attempt=0
+    SCOPE=
+    if [ "$CTYPE" = "docker" ] ; then
+	echo Waiting for docker container $UNIQNAME to start ...
+	while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
+	    if [ $attempt -gt 0 ] ; then
+		echo Sleeping 1s ...
+		sleep 1
+	    fi
+	    attempt=$((attempt + 1))
+	    LONGID=$(docker ps --no-trunc -f name=$UNIQNAME --quiet)
+	    if [ -n "$LONGID" ] ; then
+		echo Docker container running as $LONGID
+		SCOPE=/sys/fs/cgroup/system.slice/docker-$LONGID.scope
+	    fi
+	done
+    else
+	echo Waiting for singularity/apptainer container $UNIQNAME to start ...
+	while [ -z "$SCOPE" -a $attempt -le $INITWAIT ] ; do
+	    if [ $attempt -gt 0 ] ; then
+		echo Sleeping 1s ...
+		sleep 1
+	    fi
+	    attempt=$((attempt + 1))
+	    oliness=$(wc -l $WORKDIR/$UNIQNAME.output)
+	    olines=${oliness%% *}
+	    if [ -z "$olines" ] ; then
+		olines=0
+	    fi
+	    if [ $olines -gt 1 ] ; then
+		if [ $WRAPPED -eq 0 ] ; then
+		    CGROUP=$(sed -e 's#^[^/]*/##' /proc/$PIPID/cgroup)
+		    SCOPE=/sys/fs/cgroup/$CGROUP
+		else
+		    SCOPE=PBS
+		    CGROUP=$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
+		    # find /sys/fs -ipath "/sys*$SCOPE*"
+		fi
+	    fi
+	done
+    fi
+
+    if [ "$CTYPE" = "docker" -a -z "$LONGID" ] ; then
+	echo Cannot get running Docker container long id, bailing out.
+    fi
+
+    # Check
+    if [ -z "$SCOPE" ] ; then
+	echo Cannot get cgroup scope.
+	kill $PIPID
+	wait $PIPID
+	exit 1
+    fi
+
+    echo Using scope: $SCOPE
+    echo Using cgroup: $CGROUP
+
+    # Parse key-value as list of arguments
+    parse_cpustat() {
+	while ! [ -z "$2" ] ; do
+	    case $1 in
+		usage_usec)
+		    usage_usec=$2
+		    ;;
+		user_usec)
+		    user_usec=$2
+		    ;;
+		system_usec)
+		    system_usec=$2
+		    ;;
+	    esac
+	    shift
+	    shift
+	done
+    }
+
+    parse_pbsstat() {
+	while ! [ -z "$2" ] ; do
+	    case $1 in
+		user)
+		    user_usec=$((1000 * $2 / CONFIG_HZ)) # ms
+		    ;;
+		system)
+		    system_usec=$((1000 * $2 / CONFIG_HZ)) # ms
+		    ;;
+	    esac
+	    shift
+	    shift
+	done
+    }
+
+    # Periodically print the stats
+    (
+	echo "#TS THREADS MAXTHREADS MEMORY MAXMEMORY USER SYSTEM TOTAL"
+	maxthreads=0
+	mempeak=0
+	while ps $PIPID >/dev/null 2>&1 ; do
+	    ts=$(date +%s)
+	    if [ "$SCOPE" = "PBS" ] ; then
+		# PBS as on Metacentrum
+		parse_pbsstat $(cat /sys/fs/cgroup/cpu,cpuacct/$CGROUP/cpuacct.stat)
+		usage_usec=$((user_usec + system_usec))
+		nthreads=0
+		memcur=$(cat /sys/fs/cgroup/memory/$CGROUP/memory.max_usage_in_bytes)
+		if [ $memcur -gt $mempeak ] ; then
+		    mempeak=$memcur
+		fi
+		true
 	    else
-		SCOPE=PBS
-		CGROUP=$(sed -n -e '/jobid/s#^[^/]*/##;T;p;q' /proc/$PIPID/cgroup)
-		# find /sys/fs -ipath "/sys*$SCOPE*"
+		# Ubuntu/Debian default cgroups
+		nthreadss=$(wc -l $SCOPE/cgroup.threads 2>/dev/null)
+		nthreads=${nthreadss%% *}
+		mempeak=$(cat $SCOPE/memory.peak 2>/dev/null)
+		memcur=$(cat $SCOPE/memory.current 2>/dev/null)
+		parse_cpustat $(cat $SCOPE/cpu.stat 2>/dev/null)
+		user_usec=$((user_usec/1000))
+		system_usec=$((system_usec/1000))
+		usage_usec=$((usage_usec/1000))
 	    fi
-	fi
-    done
-fi
-
-if [ "$CTYPE" = "docker" -a -z "$LONGID" ] ; then
-    echo Cannot get running Docker container long id, bailing out.
-fi
-
-# Check
-if [ -z "$SCOPE" ] ; then
-    echo Cannot get cgroup scope.
-    kill $PIPID
-    wait $PIPID
-    exit 1
-fi
-
-echo Using scope: $SCOPE
-echo Using cgroup: $CGROUP
-
-# Parse key-value as list of arguments
-parse_cpustat() {
-    while ! [ -z "$2" ] ; do
-	case $1 in
-	    usage_usec)
-		usage_usec=$2
-		;;
-	    user_usec)
-		user_usec=$2
-		;;
-	    system_usec)
-		system_usec=$2
-		;;
-	esac
-	shift
-	shift
-    done
-}
-
-parse_pbsstat() {
-   while ! [ -z "$2" ] ; do
-	case $1 in
-	    user)
-		user_usec=$2
-		;;
-	    system)
-		system_usec=$2
-		;;
-	esac
-	shift
-	shift
-    done
-}
-
-# Periodically print the stats
-(
-    echo "#TS THREADS MAXTHREADS MEMORY MAXMEMORY USER SYSTEM TOTAL"
-    maxthreads=0
-    mempeak=0
-    while ps $PIPID >/dev/null 2>&1 ; do
-	ts=$(date +%s)
-	if [ "$SCOPE" = "PBS" ] ; then
-	    # PBS as on Metacentrum
-	    parse_pbsstat $(cat /sys/fs/cgroup/cpu,cpuacct/$CGROUP/cpuacct.stat)
-	    usage_usec=$((user_usec + system_usec))
-	    nthreads=0
-	    memcur=$(cat /sys/fs/cgroup/memory/$CGROUP/memory.max_usage_in_bytes)
-	    if [ $memcur -gt $mempeak ] ; then
-		mempeak=$memcur
+	    if [ -n "$nthreads" ] ; then
+		if [ $maxthreads -lt $nthreads ] ; then
+		    maxthreads=$nthreads
+		fi
 	    fi
-	    true
-	else
-	    # Ubuntu/Debian default cgroups
-	    nthreadss=$(wc -l $SCOPE/cgroup.threads 2>/dev/null)
-	    nthreads=${nthreadss%% *}
-	    mempeak=$(cat $SCOPE/memory.peak 2>/dev/null)
-	    memcur=$(cat $SCOPE/memory.current 2>/dev/null)
-	    parse_cpustat $(cat $SCOPE/cpu.stat 2>/dev/null)
-	    user_usec=$((user_usec/1000000))
-	    system_usec=$((system_usec/1000000))
-	    usage_usec=$((usage_usec/1000000))
-	fi
-	if [ -n "$nthreads" ] ; then
-	    if [ $maxthreads -lt $nthreads ] ; then
-		maxthreads=$nthreads
-	    fi
-	fi
-	#if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
+	    #if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
 	    echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
-	#fi
-	sleep 1
-    done
-) | tee $WORKDIR/$UNIQNAME.data
+	    #fi
+	    sleep 1
+	done
+    ) | tee $WORKDIR/$UNIQNAME.data
 
-# Generate GNUPlot source and run it
-cat <<EOF >$WORKDIR/$UNIQNAME.gnuplot
+    # Generate GNUPlot source and run it
+    cat <<EOF >$WORKDIR/$UNIQNAME.gnuplot
 name='$UNIQNAME'
 data=name . '.data'
 outtmname=name . '-tm.svg'
@@ -314,31 +325,33 @@ plot data u 1:6 w l t "User", \
      data u 1:7 w l t "System", \
      data u 1:8 w l t "Total"
 EOF
-owd=$(pwd)
-cd $WORKDIR
-gnuplot $UNIQNAME.gnuplot
-cd "$owd"
+    owd=$(pwd)
+    cd $WORKDIR
+    gnuplot $UNIQNAME.gnuplot
+    cd "$owd"
 
-# Done
-rtend=$(date +%s)
-wait $PIPID
-echo DONE
+    # Done
+    rtend=$(date +%s)
+    wait $PIPID
+    echo DONE
 
-# Summary
-echo
-(
-    echo Ran with options: $SCRIPTARGS
+    # Summary
     echo
-    echo Maximum threads: $(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $3}')
-    mempeak=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $5}')
-    echo Memory peak usage: $((mempeak / 1024 / 1024)) MB
-    user_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $6}')
-    system_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $7}')
-    total_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $8}')
-    echo User time: $user_usec s
-    echo System time: $system_usec s
-    echo Total time: $total_usec s
+    (
+	echo Ran with options: $SCRIPTARGS
+	echo
+	echo Maximum threads: $(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $3}')
+	mempeak=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $5}')
+	echo Memory peak usage: $((mempeak / 1024 / 1024)) MB
+	user_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $6}')
+	system_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $7}')
+	total_usec=$(grep . $WORKDIR/$UNIQNAME.data|tail -n 1|awk '{print $8}')
+	echo User time: $((user_usec / 1000)) s
+	echo System time: $((system_usec / 1000)) s
+	echo Total time: $((total_usec / 1000)) s
+	echo
+	echo Real time: $((rtend - rtstart)) s
+    ) | tee $WORKDIR/$UNIQNAME.result
     echo
-    echo Real time: $((rtend - rtstart)) s
-) | tee $WORKDIR/$UNIQNAME.result
-echo
+
+done
