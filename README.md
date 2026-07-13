@@ -208,16 +208,38 @@ HELP
 Architecture
 ------------
 
-Makefile
-containers/rendogbs-v2/Dockerfile - Docker image recipy
-containers/rendogbs-bedtools/Dockerfile - ...
-rendogbs.sh - outer wrapper script
-src/ - sources
-src/endonucleases.py - default data source
-src/rendogbs_pipeline.py - basic pipeline
-src/rendogbs_plots.py - plots pipeline
-src/rendogbs_run.sh - inner runtime wrapper script
-src/rendogbs_user.sh - inner permission wrapper script
+The whole pipeline is packaged as a container which includes all the
+scripts, programs, and their dependencies. There are two supported
+container platforms: Docker and Apptainer (formerly Singularity).
+
+As the pipeline needs access to local files, proper file and directory
+mappings need to be provided for either type of container. The Outer
+Wrapper Script runs the container with mappings after it performs
+preliminary argument validation.
+
+The entry point of the container is the Inner User Wrapper Script
+which is needed under Docker containerization to setup the the user
+and group under which the actual pipeline runs to match the outer
+environment. With Apptainer this layer does not perform any
+adjustments as the environment is already correctly set up. Then the
+Inner Pipeline Wrapper Script is run.
+
+The Inner Pipeline Wrapper Script validates all the arguments and
+assigns them to appropriate argument sets of individual steps. Then it
+performs all the steps and measures their running times. If any of the
+steps fails, the whole pipeline fails immediately and such information
+is reported to the user.
+
+Upon successful pipeline run timing information is shown and the
+container exits successfully.
+
+### Build System: Makefile, Dockerfiles and SIF Conversion
+
+Based on alpine Linux image it adds necessary Python version and
+libraries used (numpy, matplotlib). It copies all the scripts to the
+runtime directory inside the image (`/home/rendogbs`) and ensures the
+inner wrapper script is used as image entrypoint.
+
 
 ### Outer Wrapper Script: rendogbs.sh
 
@@ -231,16 +253,6 @@ Then it runs the Docker image `rendogbs-v2` and passes all the
 collected arguments to its entrypoint which is the inner wrapper
 script.
 
-### Build System: Makefile
-
-TODO IMGNAME
-
-### Docker Image: Dockerfile
-
-Based on alpine Linux image it adds necessary Python version and
-libraries used (numpy, matplotlib). It copies all the scripts to the
-runtime directory inside the image (`/home/rendogbs`) and ensures the
-inner wrapper script is used as image entrypoint.
 
 ### Inner User Wrapper Script: rendogbs_user.sh
 

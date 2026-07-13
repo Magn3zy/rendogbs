@@ -186,7 +186,7 @@ while [ -n "$1" ] ; do
 	    S5ARGS="$S5ARGS $1 $2"
 	    S6ARGS="$S6ARGS $1 $2"
 	    S7ARGS="$S7ARGS $1 $2"
-        S9ARGS="$S9ARGS $1 $2"
+            S9ARGS="$S9ARGS $1 $2"
 	    shift
 	    shift
 	    ;;
