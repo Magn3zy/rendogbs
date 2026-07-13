@@ -3,6 +3,33 @@
 #randomly selected samples:
 fasterq-dump SRR35086534 SRR35086541 SRR35086586 SRR35086611 SRR35086646 SRR35086666 SRR35086703 SRR35086713 SRR35086715 SRR35086544 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
 
+fasterq-dump \
+SRR35086536 \
+SRR35086539 \
+SRR35086551 \
+SRR35086553 \
+SRR35086554 \
+SRR35086555 \
+SRR35086564 \
+SRR35086574 \
+SRR35086577 \
+SRR35086592 \
+SRR35086594 \
+SRR35086603 \
+SRR35086608 \
+SRR35086615 \
+SRR35086626 \
+SRR35086630 \
+SRR35086633 \
+SRR35086642 \
+SRR35086699 \
+SRR35086706 \
+-O /home/raidfolder/rendogbs/data \
+--temp /home/raidfolder/rendogbs/data/tmp \
+--threads 8 \
+--split-files \
+--progress
+
 #reference data:
 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/036/785/885/GCF_036785885.1_Coffea_Arabica_ET-39_HiFi/GCF_036785885.1_Coffea_Arabica_ET-39_HiFi_genomic.fna.gz 
 downloaded via wget

@@ -4,6 +4,33 @@
 fasterq-dump SRR15564086 SRR15564103 SRR15564182 SRR15564286 SRR15563854 SRR15563934 SRR15563991 SRR15564007 SRR15564027 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
 fasterq-dump SRR15564060 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
 
+fasterq-dump \
+SRR15563827 \
+SRR15563884 \
+SRR15563899 \
+SRR15563905 \
+SRR15563917 \
+SRR15563927 \
+SRR15563936 \
+SRR15563957 \
+SRR15563959 \
+SRR15563981 \
+SRR15563996 \
+SRR15564102 \
+SRR15564134 \
+SRR15564164 \
+SRR15564212 \
+SRR15564218 \
+SRR15564233 \
+SRR15564247 \
+SRR15564261 \
+SRR15564268 \
+-O /home/raidfolder/rendogbs/data \
+--temp /home/raidfolder/rendogbs/data/tmp \
+--threads 8 \
+--split-files \
+--progress
+
 #reference data:
 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/053/477/285/GCF_053477285.1_ASM5347728v1/GCF_053477285.1_ASM5347728v1_genomic.fna.gz
 downloaded via wget

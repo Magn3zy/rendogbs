@@ -4,6 +4,9 @@
 fasterq-dump SRR24862224 SRR24862958 SRR24862621 SRR24862197 SRR24862221 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
 fasterq-dump SRR24836794 SRR24836806 SRR24836820 SRR24836831 SRR24837080 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
 
+fasterq-dump SRR24836531 SRR24836581 SRR24836658 SRR24836696 SRR24836866 SRR24836867 SRR24836880 SRR24836909 SRR24836929 SRR24837025 SRR24837045 SRR24837137 SRR24837231 SRR24862202 SRR24862281 SRR24862291 SRR24862295 SRR24862333 SRR24862391 SRR24862425 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 8 --split-files --progress
+
+
 #reference data:
 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/047/663/525/GCF_047663525.1_IASCAAS_PekinDuck_T2T/GCF_047663525.1_IASCAAS_PekinDuck_T2T_genomic.fna.gz
 downloaded via wget

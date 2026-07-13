@@ -3,6 +3,33 @@
 #randomly selected samples:
 fasterq-dump SRR30553314 SRR30553315 SRR30553375 SRR30553446 SRR30553517 SRR30553585 SRR30553617 SRR30553197 SRR30553239 SRR30553282 -O /home/raidfolder/rendogbs/data --temp /home/raidfolder/rendogbs/data/tmp --threads 1 --split-files --progress
 
+fasterq-dump \
+SRR30553179 \
+SRR30553193 \
+SRR30553207 \
+SRR30553227 \
+SRR30553249 \
+SRR30553338 \
+SRR30553363 \
+SRR30553401 \
+SRR30553402 \
+SRR30553404 \
+SRR30553418 \
+SRR30553421 \
+SRR30553428 \
+SRR30553503 \
+SRR30553532 \
+SRR30553537 \
+SRR30553543 \
+SRR30553598 \
+SRR30553613 \
+SRR30553618 \
+-O /home/raidfolder/rendogbs/data \
+--temp /home/raidfolder/rendogbs/data/tmp \
+--threads 1 \
+--split-files \
+--progress
+
 #reference data:
 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/056/507/715/GCA_056507715.1_ASM5650771v1/GCA_056507715.1_ASM5650771v1_genomic.fna.gz
 downloaded via wget
