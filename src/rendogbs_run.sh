@@ -13,10 +13,6 @@
 # containers.
 #
 
-# Configuration
-PIPELINE=rendogbs_pipeline.py
-PLOTS=rendogbs_plots.py
-
 #
 # Logging functions
 info() {

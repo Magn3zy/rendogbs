@@ -322,7 +322,28 @@ passing on all agruments.
 
 ### Inner Pipeline Wrapper Script: rendogbs_run.sh
 
-TODO ...
+This innermost wrapper script is rather long, however it can be viewed
+as a three-part program.
+
+The first part is just the primary documentation of all the
+command-line options supported by the pipeline. The Outer Wrapper
+Script has to be updated if any inner options documented here change.
+
+The second part is the option parsing and collecting into argument
+lists of individual steps. As many steps share the same arguments, the
+rules for these options ensure they are passed to programs which
+require them.
+
+The third part performs the individual steps while logging the running
+times and checking exit codes. Should any step fail, the whole
+pipeline is terminated immediately and returns a non-zero exit code.
+
+After performing all the steps, this script prints a short summary of
+running times and provides information about where the pipeline
+results can be found.
+
+For detailed description of all the steps, please refer to the [Core
+Architecture](./Core_Architecture.md) documentation.
 
 ### Performance Benchmark Support: benchmark.sh
 
