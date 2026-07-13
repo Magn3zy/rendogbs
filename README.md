@@ -235,11 +235,42 @@ container exits successfully.
 
 ### Build System: Makefile, Dockerfiles and SIF Conversion
 
-Based on alpine Linux image it adds necessary Python version and
-libraries used (numpy, matplotlib). It copies all the scripts to the
-runtime directory inside the image (`/home/rendogbs`) and ensures the
-inner wrapper script is used as image entrypoint.
+Standard Makefile with target dependencies is used for implementing
+the build process. The default target builds the Docker image and a
+separate `sif` target builds the Apptainer image.
 
+Internally there are multiple interdependent targets that orchestrate
+the whole process. For building the primary Docker image, two helper
+images are built.
+
+Firstly as the internal `docker-bedtools` Makefile target the
+`rendogbs-bedtools` container is built using the
+`containers/rendogbs-bedtools/Dockerfile` recipy. It builts the
+`bedtools` binary using an older Alpine Linux 3.18 based image as the
+version this project uses can only be built with gcc 12.
+
+Secondly as the internal `docker-rust` Makefile target the
+`rendogbs-rust` container is built which compiles all the Rust
+binaries implemented for this project. It uses the latest Alpine Linux
+image available as the latest Rust compiler is always needed.
+
+Thirdly as the internal `docker` Makefile target the final Docker
+image `rendogbs-v2` container is built from latest Alpine Linux
+image. The bedtools binary and all the Rust programs are copied from
+the former two containers without development files, include headers
+and static libraries, reducing significantly the final image size. All
+the scripts, binaries and support data are stored in `/home/rendogbs`
+directory inside the image. The entry point is the
+`/home/rendogbs/rendogbs_user.sh` shell script.
+
+The outer wrapper script expects this `rendogbs-v2` image locally
+available.
+
+If a `sif` target is build it ensures the `rendogbs-v2` docker image
+is locally available by dependeing on the `docker` internal target. It
+checks for the `apptainer` (preferred) or `singularity` binary
+availability and uses it to build the resulting SIF image using the
+tool found.
 
 ### Outer Wrapper Script: rendogbs.sh
 
