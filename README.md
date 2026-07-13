@@ -274,16 +274,25 @@ tool found.
 
 ### Outer Wrapper Script: rendogbs.sh
 
-TODO IMGNAME
-
 This script validates the presence of mandatory arguments on the
-command-line and creates appropriate Docker volume mappings for any
-files and/or directories the pipeline needs.
+command-line and creates required container volume mappings for any
+files and directories the pipeline needs. If running the Docker
+containerization it runs the locally available `rendogbs-v2` docker
+image. If running the Apptainer containerization it runs the
+`rendogbs-v2.sif` container in this script directory. 
 
-Then it runs the Docker image `rendogbs-v2` and passes all the
-collected arguments to its entrypoint which is the inner wrapper
-script.
+Any options recognized by the Inner Pipeline Wrapper Script dealing
+with files and directories are recognized by this script as well and
+their arguments are used to construct the mappings needed. Basic
+command-line options validation is performed as well in order to not
+run the container if there is an obvious error that can be detected
+independently.
 
+For Apptainer containerization there is also a support for running
+under PBS job scheduler using the standard `qsub` command.
+
+For usage instructions, use `sh rendogbs.sh --help` and read the
+detailed output.
 
 ### Inner User Wrapper Script: rendogbs_user.sh
 
@@ -312,3 +321,6 @@ unprivileged user.
 
 TODO ...
 
+### Performance Benchmark Support: benchmark.sh
+
+TODO ...
