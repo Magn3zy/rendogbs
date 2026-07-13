@@ -17,8 +17,8 @@ jobs:
       - name: Build the Image
         run: |
           make sif
-      - name: Release the Image
-        uses: actions/upload-artifact@v7
-        with:
-          name: rendogbs-v2.sif
-          path: ./rendogbs-v2.sif
+      # - name: Release the Image
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     name: rendogbs-v2.sif
+      #     path: ./rendogbs-v2.sif
