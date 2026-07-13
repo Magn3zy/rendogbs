@@ -21,10 +21,11 @@ The build process builds a Docker image named `rendogbs-v2` locally as
 the default make target is `docker`. The image is built from supplied
 `Dockerfile` in the root of this repository.
 
-To build a singularity image, use the `singularity` target:
+To build an Apptainer (formerly Singularity) image, use the `sif`
+target:
 
 ```sh
-make singularity
+make sif
 ```
 
 This creates the `rendogbs-v2.sif` file.
@@ -32,7 +33,7 @@ This creates the `rendogbs-v2.sif` file.
 It is possible to build both Docker and singularity image by using the
 `all` target, however as the singularity image is built from the
 Docker image, it basically performs the same operations as the
-`singularity` target:
+`sif` target:
 
 ```sh
 make all
@@ -60,9 +61,15 @@ sh rendogbs.sh --docker [ARGS]
 ```
 
 The wrapper script uses Docker by default. It is possible to make it
-run the singularity container `rendogbs-v2.sif` in current
-directory. As the container is built in the root of this repository,
-the following suffices:
+run the Apptainer container `rendogbs-v2.sif` in current directory. As
+the container is built in the root of this repository, the following
+suffices:
+
+```sh
+sh rendogbs.sh --apptainer [ARGS]
+```
+
+For backwards compatibility, the following works as well:
 
 ```sh
 sh rendogbs.sh --singularity [ARGS]
@@ -97,12 +104,12 @@ Using the wrapper script, it is pretty straightforward:
 sh rendogbs.sh --ref ./data/GCF_000001735.3_TAIR10_genomic.fna.gz --workdir ./run2 --parallel 5 --size 200-400
 ```
 
-### Running the Singularity Image
+### Running the Apptainer (formerly Singularity) Image
 
-The wrapper script handles all of the differences Singularity brings:
+The wrapper script handles all of the differences Apptainer brings:
 
 ```sh
-sh rendogbs.sh --singularity --ref ./data/GCF_000001735.3_TAIR10_genomic.fna.gz --workdir ./run2 --parallel 5 --size 200-400
+sh rendogbs.sh --apptainer --ref ./data/GCF_000001735.3_TAIR10_genomic.fna.gz --workdir ./run2 --parallel 5 --size 200-400
 ```
 
 ### Running the Docker Image Manually
@@ -129,10 +136,12 @@ docker run \
   --size 200-400
 ```
 
-### Running the Singularity Container Manually
+### Running the Apptainer Container Manually
 
-It is possible, but **strongly** discouraged, to run the Singularity
-image manually.
+It is possible, but **strongly** discouraged, to run the Apptainer
+image manually. The following guide uses the legacy `singularity`
+binary which works both in Apptainer and original Singularity
+distribution.
 
 There are two options. The first option is to use the
 `SINGULARITY_BIND` environment variable to bind files and directories
