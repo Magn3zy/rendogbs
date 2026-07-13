@@ -315,7 +315,10 @@ docker run -e LUID=$(id -u) -e LGID=$(id -g) ...
 
 For Singularity it receives the `SINGULARITY_CONTAINER` environment
 variable and recognizes it is already running as the correct
-unprivileged user.
+unprivileged user and performs no environment adjustments.
+
+In both cases it finally runs the Inner Pipeline Wrapper Script,
+passing on all agruments.
 
 ### Inner Pipeline Wrapper Script: rendogbs_run.sh
 
