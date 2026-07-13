@@ -347,4 +347,37 @@ Architecture](./Core_Architecture.md) documentation.
 
 ### Performance Benchmark Support: benchmark.sh
 
-TODO ...
+In order to measure actual resource consumption by the whole pipeline
+the `benchmark.sh` script allows for running it in a controlled
+environment with CPU and memory accounting enabled on the Linux
+platform using cgroups.
+
+This script accepts the same arguments as the Outer Wrapper Script
+with the addition of `--repeats` option which specifies how many times
+the pipeline with given arguments is run. For each run a unique name
+is generated and the detailed measured resource consumption is put in
+a file with this unique name and the extension `.result`.
+
+The measured resources are:
+
+- Number of Threads
+- Memory Peak Usage in MB
+- User Time in seconds
+- System Time in seconds
+- Total Time in seconds
+- Real Time in seconds
+
+In addition to the overall results, resource consumption snapshots are
+stored in a file with given unique name and the extension `.data`. The
+format is simple space-separated values table with the first line
+showing the column names. The first column is always the UNIX
+timestamp. During the pipeline run a new row of measured values is
+added each second.
+
+The data file is then used to plot the resource consumption graphs
+using GNUPlot. See the generated `.gnuplot` file for details.
+
+**Known caveat:** When benchmarking the Apptainer container, the
+number of threads is usually always exaggerated because of how the
+file mapings are implemented. You can subtract the number of threads
+on the first data row to get an actual value.
