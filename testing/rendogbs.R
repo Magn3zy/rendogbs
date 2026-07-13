@@ -2,6 +2,187 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(stringr)
+library(patchwork)
+library(ggtext)
+
+# extraction nr. 1
+path_to_all_samples <- list.files("input", recursive = TRUE, pattern = "*\\.csv", full.names = TRUE)
+list_names <- str_remove(string = path_to_all_samples, pattern = "input\\/") |> 
+  str_remove(pattern = "\\.csv") |> 
+  str_replace(pattern = "\\/", replacement = "\\-")
+# test <- readLines(con = "input/Anas_platyrhynchos/SRR24837080.csv")
+# grep(pattern = "^gc_bin_pct", x = test)
+# stringr::str_which(test, pattern = "^gc_bin_pct") # grep ekvivalent
+# file_upload(x = "input/Anas_platyrhynchos/SRR24837080.csv")
+metadata_extraction<- function(x){
+  upload <- readLines(x, n = 7)
+  metadata_names <- stringr::str_extract(string = upload, pattern = "^[[:alpha:]_]+")
+  metadata_values <- stringr::str_extract(string = upload, pattern = "[[:digit:]]+")
+  meta_dataset <- data.frame(meta_names = metadata_names, meta_values = metadata_values)
+  return(meta_dataset)
+}
+# test <- readLines("input/Anas_platyrhynchos/SRR24836806.csv", n = 7)
+# vysledovka <- str_split_fixed(test, pattern = ",", n = 2)
+meta_list <- lapply(X = path_to_all_samples, FUN = metadata_extraction)
+names(meta_list) <- list_names
+meta_df <- bind_rows(meta_list, .id = "source")
+meta_df_sum <- meta_df |> 
+  separate(col = source, into = c("species", "project_id"),sep = "-") |> 
+  filter(meta_names %in% c("Predicted_fragments", "Matched", "Total_reads")) |> 
+  mutate(meta_values = as.numeric(meta_values)) |> 
+  pivot_wider(names_from = meta_names, values_from = meta_values) |> 
+  mutate(tr_vs_predicted = round(Total_reads/Predicted_fragments, digits = 1), 
+         pct_matched = round((Matched / Predicted_fragments)*100, digits = 2)) |> 
+  select(species, tr_vs_predicted, pct_matched) |> 
+  group_by(species) |> 
+  summarise(mean_tr_vs_predicted = mean(tr_vs_predicted),
+            sd_tr_vs_predicted = sd(tr_vs_predicted),
+            min_tr_vs_predicted = min(tr_vs_predicted),
+            max_tr_vs_predicted = max(tr_vs_predicted),
+            mean_pct_matched = mean(pct_matched),
+            sd_pct_matched = sd(pct_matched),
+            min_pct_matched = min(pct_matched),
+            max_pct_matched = max(pct_matched)
+  ) |> 
+  mutate(methylation_sensitive = c(F, T, F, F, F, T, T, T, F, F, F, T, T, T, F, T, F, T, T, F)) |> 
+  arrange(methylation_sensitive, species) |> 
+  mutate(species_num = rep(1:10, times = 2),
+         species_legend = paste(species_num, ": ", species, sep = "")) 
+sl_nonsensitive <- tibble(lab = c("1: *Anas platyrhynchos*<br>
+                                      2: *Camellia sinensis assamica*<br>
+                                      3: *Coffea arabica*<br>
+                                      4: *Crassostrea virginica*<br>
+                                      5: *Oncorhynchus mykiss*<br>
+                                      6: *Oryza sativa*<br>
+                                      7: *Populus tremula*<br>
+                                      8: *Quercus rubra*<br>
+                                      9: *Scatophagus argus*<br>
+                                      10: *Sparus aurata*"
+                                  ) 
+                                    )
+sl_sensitive <- tibble(lab = c("1: *Brassica napus*<br>
+                                2: *Fragaria \u00D7 ananassa*<br>
+                                3: *Halyomorpha halys*<br>
+                                4: *Labeo rohita*<br>
+                                5: *Prunus persica*<br>
+                                6: *Quercus cerris*<br>
+                                7: *Quercus ilex*<br>
+                                8: *Salmo trutta*<br>
+                                9: *Sesamum indicum*<br>
+                               10: *Solanum lycopersicum*")
+                       )
+
+
+p1 <-  ggplot(data = meta_df_sum [meta_df_sum$methylation_sensitive == 0,], 
+              mapping = aes(x = mean_pct_matched,
+                            y = mean_tr_vs_predicted)) +
+  geom_errorbar(aes(xmin = min_pct_matched, xmax = max_pct_matched,colour = "Range"),
+                alpha = 0.2,
+                linewidth = 0.5,
+                linetype = 1,
+                width = 30
+  ) +
+  geom_errorbar(aes(ymin = min_tr_vs_predicted, ymax = max_tr_vs_predicted, colour = "Range"),
+                alpha = 0.2,
+                linewidth = 0.5,
+                linetype = 1,
+                width = 0.5
+  ) +
+  geom_errorbar(aes(xmin = mean_pct_matched - sd_pct_matched, xmax = mean_pct_matched + sd_pct_matched, colour = "SD"), 
+                linewidth = 0.5,
+                width = 30
+  ) +
+  geom_errorbar(aes(ymin = mean_tr_vs_predicted - sd_tr_vs_predicted, ymax = mean_tr_vs_predicted + sd_tr_vs_predicted, colour = "SD"), 
+                linewidth = 0.5,
+                width = 0.5) +
+  geom_point(shape = 21, colour = "black", fill = "#00796B", size = 3) +
+  scale_colour_manual(name = "", values = c("Range" = "purple", "SD" = "#4DB6AC"))+
+  # geom_point(aes(colour = reorder(species_legend, species_num))) +
+  geom_text(aes(label = species_num), size = 2, colour = "ivory") +
+  labs(x = "Matched", y = "Total reads / Predicted fragments ratio", title = "Methylation non-sensitive") +
+  # annotate("text", label = meta_df_sum$species_legend [meta_df_sum$methylation_sensitive == FALSE], 
+  #          x = 50, y = seq(from = 1000, to = 1900, by = 100))+
+  geom_richtext(data = sl_nonsensitive, aes(x = 26, y = 1800, label = lab), 
+                hjust = 0, 
+                size = 3,
+                label.colour = "gray")+
+  scale_x_continuous(breaks = seq(from = 30, to = 100, by = 10), 
+                     labels = paste(seq(from = 30, to = 100, by = 10), "%", sep = ""))+
+  scale_y_continuous(breaks = seq(from = 0, to = 2500, by = 500), 
+                     labels = paste(seq(from = 0, to = 2500, by = 500), "\u00D7", sep = ""))+
+  theme_bw() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.1,0.4),
+        legend.background = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 10),
+        panel.grid.major = element_line(colour = "gray", linetype = 3, linewidth = 0.3),
+        # panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 6, face = "bold"),
+        axis.title = element_text(size = 8)
+  )
+# ggsave(filename = "graphic/test_non-sensitive.jpg", units = "mm", height = 120, width = 150)
+
+# methylation sensitive
+# palette_yes = {
+#   1: "#FDD9D2",
+#   2: "#F28E7F",
+#   3: "#D95F4A"
+# }
+# 
+p2 <- ggplot(data = meta_df_sum [meta_df_sum$methylation_sensitive == 1,], 
+             mapping = aes(x = mean_pct_matched,
+                           y = mean_tr_vs_predicted)) +
+  geom_errorbar(aes(xmin = min_pct_matched, xmax = max_pct_matched,colour = "Range"),
+                alpha = 0.2,
+                linewidth = 0.5,
+                linetype = 1,
+                width = 30
+  ) +
+  geom_errorbar(aes(ymin = min_tr_vs_predicted, ymax = max_tr_vs_predicted, colour = "Range"),
+                alpha = 0.2,
+                linewidth = 0.5,
+                linetype = 1,
+                width = 0.5
+  ) +
+  geom_errorbar(aes(xmin = mean_pct_matched - sd_pct_matched, xmax = mean_pct_matched + sd_pct_matched, colour = "SD"), 
+                linewidth = 0.5,
+                width = 30
+  ) +
+  geom_errorbar(aes(ymin = mean_tr_vs_predicted - sd_tr_vs_predicted, ymax = mean_tr_vs_predicted + sd_tr_vs_predicted, colour = "SD"), 
+                linewidth = 0.5,
+                width = 0.5) +
+  geom_point(shape = 21, colour = "black", fill = "#D95F4A", size = 3) +
+  scale_colour_manual(name = "", values = c("Range" = "purple", "SD" = "#F28E7F"))+
+  # geom_point(aes(colour = reorder(species_legend, species_num))) +
+  geom_text(aes(label = species_num), size = 2, colour = "ivory") +
+  labs(x = "Matched", y = "Total reads / Predicted fragments ratio", title = "Methylation sensitive") +
+  geom_richtext(data = sl_sensitive, aes(x = 16, y = 1125, label = lab),
+                hjust = 0,
+                size = 3,
+                label.colour = "gray")+
+  scale_x_continuous(breaks = seq(from = 20, to = 100, by = 10),
+                     labels = paste(seq(from = 20, to = 100, by = 10), "%", sep = ""))+
+  scale_y_continuous(breaks = seq(from = 0, to = 1400, by = 200),
+                     labels = paste(seq(from = 0, to = 1400, by = 200), "\u00D7", sep = ""))+
+  theme_bw() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.1,0.39),
+        legend.background = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 10),
+        panel.grid.major = element_line(colour = "gray", linetype = 3, linewidth = 0.3),
+        # panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 6, face = "bold"),
+        axis.title = element_text(size = 8)
+  )
+
+# ggsave(filename = "graphic/test_sensitive.jpg", units = "mm", height = 120, width = 150)
+p1 + p2 + plot_annotation(tag_levels = list(c("(A)", "(B)"))) & theme(plot.tag = element_text(size = 8))
+ggsave(filename = "graphic/multi_predicted_vs_matched.jpg", units = "mm", height = 120, width = 300)
+
+
+# extraction nr. 2
 path_to_all_samples <- list.files("input", recursive = TRUE, pattern = "*\\.csv", full.names = TRUE)
 list_names <- str_remove(string = path_to_all_samples, pattern = "input\\/") |> 
                 str_remove(pattern = "\\.csv") |> 
@@ -94,84 +275,6 @@ ggsave(filename = "graphic/multi_preliminary_test.jpg", height = 360, width = 10
 
 
 
-# extrakce nr. 2
-path_to_all_samples <- list.files("input", recursive = TRUE, pattern = "*\\.csv", full.names = TRUE)
-list_names <- str_remove(string = path_to_all_samples, pattern = "input\\/") |> 
-  str_remove(pattern = "\\.csv") |> 
-  str_replace(pattern = "\\/", replacement = "\\-")
-# test <- readLines(con = "input/Anas_platyrhynchos/SRR24837080.csv")
-# grep(pattern = "^gc_bin_pct", x = test)
-# stringr::str_which(test, pattern = "^gc_bin_pct") # grep ekvivalent
-# file_upload(x = "input/Anas_platyrhynchos/SRR24837080.csv")
-metadata_extraction<- function(x){
-  upload <- readLines(x, n = 7)
-  metadata_names <- stringr::str_extract(string = upload, pattern = "^[[:alpha:]_]+")
-  metadata_values <- stringr::str_extract(string = upload, pattern = "[[:digit:]]+")
-  meta_dataset <- data.frame(meta_names = metadata_names, meta_values = metadata_values)
-  return(meta_dataset)
-}
-# test <- readLines("input/Anas_platyrhynchos/SRR24836806.csv", n = 7)
-# vysledovka <- str_split_fixed(test, pattern = ",", n = 2)
-meta_list <- lapply(X = path_to_all_samples, FUN = metadata_extraction)
-names(meta_list) <- list_names
-meta_df <- bind_rows(meta_list, .id = "source")
-meta_df_sum <- meta_df |> 
-              separate(col = source, into = c("species", "project_id"),sep = "-") |> 
-              filter(meta_names %in% c("Predicted_fragments", "Matched", "Total_reads")) |> 
-              mutate(meta_values = as.numeric(meta_values)) |> 
-              pivot_wider(names_from = meta_names, values_from = meta_values) |> 
-              mutate(tr_vs_predicted = round(Total_reads/Predicted_fragments, digits = 1), 
-                     pct_matched = round((Matched / Predicted_fragments)*100, digits = 2)) |> 
-              select(species, tr_vs_predicted, pct_matched) |> 
-              group_by(species) |> 
-              summarise(mean_tr_vs_predicted = mean(tr_vs_predicted),
-                    sd_tr_vs_predicted = sd(tr_vs_predicted),
-                    min_tr_vs_predicted = min(tr_vs_predicted),
-                    max_tr_vs_predicted = max(tr_vs_predicted),
-                    mean_pct_matched = mean(pct_matched),
-                    sd_pct_matched = sd(pct_matched),
-                    min_pct_matched = min(pct_matched),
-                    max_pct_matched = max(pct_matched)
-                    ) |> 
-              mutate(methylation_sensitive = c(F, T, F, F, F, T, T, T, F, F, F, T, T, T, F, T, F, T, T, F)) |> 
-              arrange(methylation_sensitive, species) |> 
-              mutate(species_num = rep(1:10, times = 2),
-                     species_legend = paste(species_num, ": ", species, sep = "")) 
-         
-ggplot(data = meta_df_sum [meta_df_sum$methylation_sensitive == 0,], mapping = aes(x = mean_pct_matched,
-                                                                                   y = mean_tr_vs_predicted, 
-                                                                                   )) +
-  geom_errorbar(aes(xmin = min_pct_matched, xmax = max_pct_matched,colour = "Range"),
-                alpha = 0.2,
-                linewidth = 0.5,
-                linetype = 1,
-                width = 30
-                ) +
-  geom_errorbar(aes(ymin = min_tr_vs_predicted, ymax = max_tr_vs_predicted, colour = "Range"),
-                alpha = 0.2,
-                linewidth = 0.5,
-                linetype = 1,
-                width = 0.5
-                ) +
-  geom_errorbar(aes(xmin = mean_pct_matched - sd_pct_matched, xmax = mean_pct_matched + sd_pct_matched, colour = "SD"), 
-                linewidth = 0.5,
-                width = 30
-                ) +
-  geom_errorbar(aes(ymin = mean_tr_vs_predicted - sd_tr_vs_predicted, ymax = mean_tr_vs_predicted + sd_tr_vs_predicted, colour = "SD"), 
-                linewidth = 0.5,
-                width = 0.5) +
-  geom_point(shape = 21, colour = "black", fill = "#4DB6AC", size = 3) +
-  scale_colour_manual(name = "", values = c("Range" = "purple", "SD" = "#4DB6AC"))+
-  # geom_point(aes(colour = reorder(species_legend, species_num))) +
-  geom_text(aes(label = species_num), size = 2) +
-  labs(x = "Matched", y = "Total reads / Predicted fragments ratio", title = "Methylation non-sensitive") +
-  scale_x_continuous(breaks = seq(from = 30, to = 100, by = 10), labels = paste(seq(from = 30, to = 100, by = 10), "%", sep = ""))+
-  scale_y_continuous(breaks = seq(from = 0, to = 2500, by = 500), labels = paste(seq(from = 0, to = 2500, by = 500), "\u00D7", sep = ""))+
-  theme_classic() +
-  theme(legend.position = "inside",
-        legend.position.inside = c(0.1,0.3))
-
-ggsave(filename = "graphic/test_non-sensitive.jpg", units = "mm", height = 120, width = 150)
 # meta_df_sum |> select(species, methylation_sensitive) |> arrange(methylation_sensitive, species)
 # pt_files <- list.files("input/Populus_tremula/", pattern = "*\\.csv")
 # pt_files <- paste("input/Populus_tremula/", pt_files, sep = "")
