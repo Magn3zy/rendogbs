@@ -125,7 +125,7 @@ for repnum in `seq 1 $REPEATS` ; do
 
     UNIQNAME=`date +%Y%m%dT%H%M%S`-`mktemp -u XXXXXXXXXXXXXXXX`
 
-    CONFIG_HZ=$(zgrep ^CONFIG_HZ= /proc/config.gz |sed 's/^.*=//')
+    CONFIG_HZ=$(zgrep ^CONFIG_HZ= /proc/config.gz /boot/config-`uname -r` 2>/dev/null|sed 's/^.*=//')
 
     # Measure "real" time
     rtstart=$(date +%s)
