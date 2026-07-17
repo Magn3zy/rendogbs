@@ -282,9 +282,9 @@ for repnum in `seq 1 $REPEATS` ; do
 		    maxthreads=$nthreads
 		fi
 	    fi
-	    #if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
-	    echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
-	    #fi
+	    if [ -n "$nthreads" -a -n "$memcur" -a -n "$mempeak" -a -n "$user_usec" -a -n "$system_usec" -a -n "$usage_usec" ] ; then
+		echo $ts $nthreads $maxthreads $memcur $mempeak $user_usec $system_usec $usage_usec
+	    fi
 	    sleep 1
 	done
     ) | tee $WORKDIR/$UNIQNAME.data

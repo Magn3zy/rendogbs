@@ -31,7 +31,9 @@ if [ -n "$LUID" ] ; then
     DUID=$LUID
     DGID=${LGID:-0}
     if [ "$DGID" -eq 0 ] ; then
-	adduser -G root -D -H -u $DUID rendogbs
+        if ! [ "$DUID" -eq 0 ] ; then
+	    adduser -G root -D -H -u $DUID rendogbs
+	fi
     else
 	GRP=$(getent group $DGID | cut -d: -f1)
 	if [ -z "$GRP" ] ; then
@@ -40,7 +42,11 @@ if [ -n "$LUID" ] ; then
 	fi
 	adduser -G $GRP -D -H -u $DUID rendogbs
     fi
-    su rendogbs -c "sh rendogbs_run.sh $*"
+    if [ $DUID -eq 0 ] ; then
+        sh rendogbs_run.sh $*
+    else
+        su rendogbs -c "sh rendogbs_run.sh $*"
+    fi
 else
     # Run as root (or current user - under singularity)
     if [ -z "$SINGULARITY_CONTAINER" ] ; then
