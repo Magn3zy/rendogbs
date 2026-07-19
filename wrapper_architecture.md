@@ -1,0 +1,176 @@
+Architecture
+------------
+
+The whole pipeline is packaged as a container which includes all the
+scripts, programs, and their dependencies. There are two supported
+container platforms: Docker and Apptainer (formerly Singularity).
+
+As the pipeline needs access to local files, proper file and directory
+mappings need to be provided for either type of container. The Outer
+Wrapper Script runs the container with mappings after it performs
+preliminary argument validation.
+
+The entry point of the container is the Inner User Wrapper Script
+which is needed under Docker containerization to setup the the user
+and group under which the actual pipeline runs to match the outer
+environment. With Apptainer this layer does not perform any
+adjustments as the environment is already correctly set up. Then the
+Inner Pipeline Wrapper Script is run.
+
+The Inner Pipeline Wrapper Script validates all the arguments and
+assigns them to appropriate argument sets of individual steps. Then it
+performs all the steps and measures their running times. If any of the
+steps fails, the whole pipeline fails immediately and such information
+is reported to the user.
+
+Upon successful pipeline run timing information is shown and the
+container exits successfully.
+
+### Build System: Makefile, Dockerfiles and SIF Conversion
+
+Standard Makefile with target dependencies is used for implementing
+the build process. The default target builds the Docker image and a
+separate `sif` target builds the Apptainer image.
+
+Internally there are multiple interdependent targets that orchestrate
+the whole process. For building the primary Docker image, two helper
+images are built.
+
+Firstly as the internal `docker-bedtools` Makefile target the
+`rendogbs-bedtools` container is built using the
+`containers/rendogbs-bedtools/Dockerfile` recipy. It builts the
+`bedtools` binary using an older Alpine Linux 3.18 based image as the
+version this project uses can only be built with gcc 12.
+
+Secondly as the internal `docker-rust` Makefile target the
+`rendogbs-rust` container is built which compiles all the Rust
+binaries implemented for this project. It uses the latest Alpine Linux
+image available as the latest Rust compiler is always needed.
+
+Thirdly as the internal `docker` Makefile target the final Docker
+image `rendogbs-v2` container is built from latest Alpine Linux
+image. The bedtools binary and all the Rust programs are copied from
+the former two containers without development files, include headers
+and static libraries, reducing significantly the final image size. All
+the scripts, binaries and support data are stored in `/home/rendogbs`
+directory inside the image. The entry point is the
+`/home/rendogbs/rendogbs_user.sh` shell script.
+
+The outer wrapper script expects this `rendogbs-v2` image locally
+available.
+
+If a `sif` target is build it ensures the `rendogbs-v2` docker image
+is locally available by dependeing on the `docker` internal target. It
+checks for the `apptainer` (preferred) or `singularity` binary
+availability and uses it to build the resulting SIF image using the
+tool found.
+
+### Outer Wrapper Script: rendogbs.sh
+
+This script validates the presence of mandatory arguments on the
+command-line and creates required container volume mappings for any
+files and directories the pipeline needs. If running the Docker
+containerization it runs the locally available `rendogbs-v2` docker
+image. If running the Apptainer containerization it runs the
+`rendogbs-v2.sif` container in this script directory. 
+
+Any options recognized by the Inner Pipeline Wrapper Script dealing
+with files and directories are recognized by this script as well and
+their arguments are used to construct the mappings needed. Basic
+command-line options validation is performed as well in order to not
+run the container if there is an obvious error that can be detected
+independently.
+
+For Apptainer containerization there is also a support for running
+under PBS job scheduler using the standard `qsub` command.
+
+For usage instructions, use `sh rendogbs.sh --help` and read the
+detailed output.
+
+### Inner User Wrapper Script: rendogbs_user.sh
+
+This is a thin layer needed for typical Docker usage which ensures
+that all the files are created with the current user as their
+owner. As it is the entry point it handles setting up the environment
+for both Docker and Singularity variangs.
+
+For Docker it should receive `LUID` and `LGID` (local user ID and
+local group ID) environment variables and it will setup the inner
+container environment to reflect these. The whole pipeline is then run
+as user with the same UID and GID as those provided and all the files
+have their ownership updated accordingly. When running manually under
+Docker, the following arguments to `docker run` should always be
+present:
+
+```sh
+docker run -e LUID=$(id -u) -e LGID=$(id -g) ...
+```
+
+For Singularity it receives the `SINGULARITY_CONTAINER` environment
+variable and recognizes it is already running as the correct
+unprivileged user and performs no environment adjustments.
+
+In both cases it finally runs the Inner Pipeline Wrapper Script,
+passing on all agruments.
+
+### Inner Pipeline Wrapper Script: rendogbs_run.sh
+
+This innermost wrapper script is rather long, however it can be viewed
+as a three-part program.
+
+The first part is just the primary documentation of all the
+command-line options supported by the pipeline. The Outer Wrapper
+Script has to be updated if any inner options documented here change.
+
+The second part is the option parsing and collecting into argument
+lists of individual steps. As many steps share the same arguments, the
+rules for these options ensure they are passed to programs which
+require them.
+
+The third part performs the individual steps while logging the running
+times and checking exit codes. Should any step fail, the whole
+pipeline is terminated immediately and returns a non-zero exit code.
+
+After performing all the steps, this script prints a short summary of
+running times and provides information about where the pipeline
+results can be found.
+
+For detailed description of all the steps, please refer to the [Core
+Architecture](./Core_Architecture.md) documentation.
+
+### Performance Benchmark Support: benchmark.sh
+
+In order to measure actual resource consumption by the whole pipeline
+the `benchmark.sh` script allows for running it in a controlled
+environment with CPU and memory accounting enabled on the Linux
+platform using cgroups.
+
+This script accepts the same arguments as the Outer Wrapper Script
+with the addition of `--repeats` option which specifies how many times
+the pipeline with given arguments is run. For each run a unique name
+is generated and the detailed measured resource consumption is put in
+a file with this unique name and the extension `.result`.
+
+The measured resources are:
+
+- Number of Threads
+- Memory Peak Usage in MB
+- User Time in seconds
+- System Time in seconds
+- Total Time in seconds
+- Real Time in seconds
+
+In addition to the overall results, resource consumption snapshots are
+stored in a file with given unique name and the extension `.data`. The
+format is simple space-separated values table with the first line
+showing the column names. The first column is always the UNIX
+timestamp. During the pipeline run a new row of measured values is
+added each second.
+
+The data file is then used to plot the resource consumption graphs
+using GNUPlot. See the generated `.gnuplot` file for details.
+
+**Known caveat:** When benchmarking the Apptainer container, the
+number of threads is usually always exaggerated because of how the
+file mapings are implemented. You can subtract the number of threads
+on the first data row to get an actual value.
