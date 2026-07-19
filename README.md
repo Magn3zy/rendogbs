@@ -196,7 +196,7 @@ COMBINATIONS (fast/custom)
 --combinations            fast      (deafult most used combinations from literature)
                                     you don't need to specify this argument
 --combinations            custom    (specify combinations yourself)
---combinations-file       <file>    (specify combinations you csv file) 
+--combinations-file       <file>    (specify combinations your csv file) 
                                     csv formating: header line - enzyme_a,enzyme_b, refer to enzyme list
 
 ANNOTATION (optional)
@@ -212,4 +212,5 @@ HELP
 --enzymes                 Show available enzymes in this pipeline (171)
 --fast-combinations       Show fast combinations used in this pipeline
 ```
-	  
+
+![Architecture diagram](architecture_diagram.png)
