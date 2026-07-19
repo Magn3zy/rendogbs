@@ -213,4 +213,6 @@ HELP
 --fast-combinations       Show fast combinations used in this pipeline
 ```
 
+Architecture diagram
+--------------------
 ![Architecture diagram](architecture_diagram.png)
