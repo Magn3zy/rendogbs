@@ -258,7 +258,7 @@ def process_job(
                 chunksize = 1000,
                 low_memory=True,
             )
-            df = pd.concat([df[df["enzyme"].isin({enzyme1, enzyme2})] for chunk in dfi])
+            df = pd.concat([chunk[chunk["enzyme"].isin({enzyme1, enzyme2})] for chunk in dfi])
             # JC: Na řádku 256 by prý dávalo smysl dát "accession" a "enzyme": str, protože dříve jsou nastaveny jako objecty. Ale netuším, jestli to může mít reálný dopad na rychlost. 
         except Exception as e:
             return _fail(combo, f"Failed to read CSV: {e}")
