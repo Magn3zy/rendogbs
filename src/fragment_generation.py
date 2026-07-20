@@ -250,20 +250,23 @@ def process_job(
             return _fail(combo, f"cuts.csv not found: {input_path}")
 
         try:
-            df = pd.read_csv(
+            dfi = pd.read_csv(
                 input_path,
                 usecols=["accession", "cut_position", "enzyme"],
                 dtype={"accession": "string", "cut_position": "int64", "enzyme": "string"},
-                low_memory=False,
+                iterator = True,
+                chunksize = 1000,
+                low_memory=True,
             )
+            df = pd.concat([df[df["enzyme"].isin({enzyme1, enzyme2})] for chunk in dfi])
             # JC: Na řádku 256 by prý dávalo smysl dát "accession" a "enzyme": str, protože dříve jsou nastaveny jako objecty. Ale netuším, jestli to může mít reálný dopad na rychlost. 
         except Exception as e:
             return _fail(combo, f"Failed to read CSV: {e}")
 
-        if df.empty:
-            return _fail(combo, f"No rows in {input_path}")
+        # if df.empty:
+        #     return _fail(combo, f"No rows in {input_path}")
 
-        df = df[df["enzyme"].isin({enzyme1, enzyme2})].copy()
+        # df = df[df["enzyme"].isin({enzyme1, enzyme2})].copy()
         if df.empty:
             return _fail(combo, f"No cuts for {enzyme1}/{enzyme2} in {input_path}")
 
