@@ -25,7 +25,7 @@ struct Combination {
 struct Cut {
     accession: String,
     pos:       i64,
-    enzyme:    String,
+    cut_position:    i64,
 }
 
 #[derive(Parser)]
@@ -54,9 +54,9 @@ fn load_cuts(path: &Path) -> Vec<Cut> {
                 return None;
             }
             Some(Cut {
-                accession: r[0].to_string(),
-                pos:       r[1].parse().expect("Invalid cut_position"),
-                enzyme:    r[2].to_string(),
+                accession:    r[0].to_string(),
+                pos:          r[1].parse().expect("Invalid motif_start"),
+                cut_position: r[2].parse().expect("Invalid cut_position"),
             })
         })
         .collect()
@@ -113,7 +113,7 @@ fn write_fragments_and_verify(path: &Path, cuts: &[Cut]) -> u64 {
         if a.accession != b.accession {
             continue;
         }
-        if a.enzyme == b.enzyme {
+        if a.cut_position == b.cut_position {
             continue;
         }
 
@@ -122,8 +122,8 @@ fn write_fragments_and_verify(path: &Path, cuts: &[Cut]) -> u64 {
             "{},{},{},{},{}",
             a.accession,
             a.pos,
-            a.enzyme,
-            b.enzyme,
+            a.cut_position,
+            b.cut_position,
             b.pos - a.pos,
         )
         .expect("Failed to write CSV row");
