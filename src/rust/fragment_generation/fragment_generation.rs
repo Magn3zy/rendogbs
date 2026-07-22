@@ -23,9 +23,9 @@ struct Combination {
 
 #[derive(Clone, Debug)]
 struct Cut {
-    accession: String,
+    accession: u64,
     pos:       i64,
-    cut_position:    i64,
+    enzyme:    u64,
 }
 
 #[derive(Parser)]
@@ -41,7 +41,18 @@ struct Cli {
     parallel: usize,
 }
 
-fn load_cuts(path: &Path) -> Vec<Cut> {
+fn map_accession(accession: &String, forward: &mut HashMap<String, u64>, reverse: &mut Vec<String>) -> u64 {
+    if forward.contains_key(accession) {
+	*forward.get(accession).unwrap()
+    } else {
+	let clen: u64 = forward.len() as u64;
+	forward.insert(accession.clone(), clen);
+	reverse.push(accession.clone());
+	clen
+    }
+}
+
+fn load_cuts(path: &Path, forward: &mut HashMap<String, u64>, reverse: &mut Vec<String>) -> Vec<Cut> {
     let mut rdr = ReaderBuilder::new()
         .has_headers(true)
         .from_path(path)
@@ -54,9 +65,9 @@ fn load_cuts(path: &Path) -> Vec<Cut> {
                 return None;
             }
             Some(Cut {
-                accession:    r[0].to_string(),
+                accession:    map_accession(&r[0].to_string(), forward, reverse),
                 pos:          r[1].parse().expect("Invalid motif_start"),
-                cut_position: r[2].parse().expect("Invalid cut_position"),
+                enzyme: map_accession(&r[2].to_string(), forward, reverse),
             })
         })
         .collect()
@@ -82,20 +93,22 @@ fn load_combinations(path: &Path) -> Vec<Combination> {
         .collect()
 }
 
-fn build_cuts_cache(out_dir: &Path, combos: &[Combination]) -> HashMap<String, Vec<Cut>> {
+fn build_cuts_cache(out_dir: &Path, combos: &[Combination]) -> (Arc<HashMap<String, Vec<Cut>>>, Vec<String>) {
     let mut cache = HashMap::with_capacity(combos.len());
+    let mut forward: HashMap<String, u64> = HashMap::new();
+    let mut reverse: Vec<String> = Vec::new();
 
     for combo in combos {
         let key = format!("{}_{}", combo.enzyme_a, combo.enzyme_b);
         let cuts_path = out_dir.join(&key).join("cuts.csv");
         assert!(cuts_path.exists(), "Missing cuts.csv: {:?}", cuts_path);
-        cache.insert(key, load_cuts(&cuts_path));
+        cache.insert(key, load_cuts(&cuts_path, &mut forward, &mut reverse));
     }
 
-    cache
+    (Arc::new(cache), reverse)
 }
 
-fn write_fragments_and_verify(path: &Path, cuts: &[Cut]) -> u64 {
+fn write_fragments_and_verify(path: &Path, cuts: &[Cut], reverse: &Vec<String>) -> u64 {
     // stream fragments directly to BufWriter — no intermediate Vec<Fragment>
     let file = fs::File::create(path)
         .unwrap_or_else(|_| panic!("Cannot create {:?}", path));
@@ -113,17 +126,17 @@ fn write_fragments_and_verify(path: &Path, cuts: &[Cut]) -> u64 {
         if a.accession != b.accession {
             continue;
         }
-        if a.cut_position == b.cut_position {
+        if a.enzyme == b.enzyme {
             continue;
         }
 
         writeln!(
             out,
             "{},{},{},{},{}",
-            a.accession,
+            reverse[a.accession as usize],
             a.pos,
-            a.cut_position,
-            b.cut_position,
+            reverse[a.enzyme as usize],
+            reverse[b.enzyme as usize],
             b.pos - a.pos,
         )
         .expect("Failed to write CSV row");
@@ -154,6 +167,7 @@ fn process_combo(
     combo:      &Combination,
     cuts_cache: &HashMap<String, Vec<Cut>>,
     out_dir:    &Path,
+    reverse: &Vec<String>
 ) {
     let key = format!("{}_{}", combo.enzyme_a, combo.enzyme_b);
 
@@ -162,7 +176,7 @@ fn process_combo(
         .unwrap_or_else(|| panic!("Missing combo in cache: {}", key));
 
     let out_path = out_dir.join(&key).join("fragments.csv");
-    let n = write_fragments_and_verify(&out_path, cuts);
+    let n = write_fragments_and_verify(&out_path, cuts, reverse);
 
     println!("[OK] {} -> fragments: {}", key, n);
 }
@@ -180,10 +194,11 @@ fn main() {
     println!("[INFO] combinations: {}", combos.len());
     println!("[INFO] threads:      {}", cli.parallel);
 
-    let cuts_cache = Arc::new(build_cuts_cache(&cli.out_dir, &combos));
+    let (cuts_cache, reverse) = build_cuts_cache(&cli.out_dir, &combos);
+    println!("[INFO] reverse size: {}", reverse.len());
 
     combos.par_iter().for_each(|combo| {
-        process_combo(combo, &cuts_cache, &cli.out_dir);
+        process_combo(combo, &cuts_cache, &cli.out_dir, &reverse);
     });
 
     println!("[OK] done.");
