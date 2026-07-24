@@ -1,9 +1,39 @@
 rendogbs pipeline
 =================
 
+**Rendogbs** is a reproducible pipeline for designing and evaluating 
+restriction enzyme combinations for double-digest RAD sequencing (ddRAD) 
+library preparation.
+
+Given a reference genome, rendogbs predicts the restriction fragments 
+produced by a chosen enzyme combination, filters them by the fragment size 
+window used in your library preparation protocol, and reports fragment 
+abundance, length distribution, GC composition, and (optionally) overlap 
+with gene and transposable element annotations. Multiple enzyme combinations 
+can be evaluated side by side, enabling fast comparison of
+candidate combinations before committing to a wet-lab protocol.
+
+- Predicts and evaluates restriction fragments for any of **14,040 offered 
+  ddRAD enzyme combinations** (171 supported enzymes)
+- Reports fragment abundance, length distribution, and GC composition
+- Optional gene (GFF/GTF) and transposable element (RepeatMasker/EDTA/TETools) 
+  annotation overlap
+- Compares multiple enzyme combinations in a single run
+- Fully containerized (Docker or Apptainer formerly Singularity) for reproducible, 
+  platform-independent results
+- HPC-ready — supports PBS scheduler
+- Modular, CSV-based intermediate outputs for transparency and easy 
+  downstream reuse
+- **Fully automated analysis and plotting** — results are ready to browse 
+  as TSV tables (Excel-ready) and as auto-generated figures
+
+For more detailed informations see: [`Core_Architecture.md`](./Core_Architecture.md) and 
+[`wrapper_architecture.md`](./wrapper_architecture.md).
+
 Requirements
 ------------
 
+- Unix-like environment (Linux or macOS)
 - POSIX.1 shell
 - make
 - docker
@@ -180,6 +210,44 @@ These two options are equivalent.
 
 Argument guide
 --------------
+
+> **Note on thread count:** Parallelization is performed per enzyme combination. 
+> Setting `--parallel` higher than the number of combinations you are 
+> running will not speed up the run. 
+> For best performance, set the thread count to be equal or alternatively less than the 
+> number of combinations in the current run.
+
+
+### Getting help
+
+Rendogbs ships with three separate help commands, depending on what you need:
+
+- `-h`, `--help` — general usage and argument reference (shows the commented 
+  file structure used by the pipeline).
+- `--enzymes` — full list of supported restriction enzymes (171), needed if 
+  you want to build your own custom enzyme combination via `--combinations-file`. 
+  Use the exact names listed here when specifying custom combinations — we've 
+  tried to use the most common/recognizable name for each enzyme.
+- `--fast-combinations` — list of common running enzyme 
+  combinations used by `--combinations fast` (the default).
+
+### Allowed enzyme combinations
+
+Rendogbs supports **14,040 valid enzyme combinations**. Since this is a ddRAD 
+tool, two restrictions apply when selecting a custom combination:
+
+- **No self-combinations** — an enzyme cannot be paired with itself.
+- **No nested recognition sites** — pairs where one enzyme's recognition site 
+  fully contains the other's (e.g. *MseI* `TTAA` contained within *AseI* 
+  `ATTAAT`) are filtered out to avoid nested cutting patterns.
+
+Rendogbs validates all combinations supplied via `--combinations-file` and 
+automatically filters out invalid ones (self-combinations or nested 
+recognition sites — see above). If no valid combinations remain after 
+filtering, the pipeline will end. Check `--enzymes` for the full list of supported 
+enzymes and their names before constructing your own combinations.
+
+
 ```
 REQUIRED
 --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
@@ -193,7 +261,7 @@ REQUIRED
                           per-chromosome plots (default: 10)
 
 COMBINATIONS (fast/custom)
---combinations            fast      (deafult most used combinations from literature)
+--combinations            fast      (default most used combinations from literature)
                                     you don't need to specify this argument
 --combinations            custom    (specify combinations yourself)
 --combinations-file       <file>    (specify combinations your csv file) 
@@ -216,3 +284,9 @@ HELP
 Architecture diagram
 --------------------
 ![Architecture diagram](architecture_diagram.png)
+
+
+Resource requirements & benchmarking
+------------------------------------
+
+TODO
