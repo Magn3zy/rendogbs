@@ -34,7 +34,6 @@ Requirements
 ------------
 
 - Unix-like environment (Linux or macOS)
-- POSIX.1 shell
 - make
 - docker
 
