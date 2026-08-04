@@ -12,6 +12,8 @@
          pict
          racket/format)
 
+(current-directory "ddr4")
+
 ;(define dirnames (command-line #:args paths paths))
 
 (define names '(pp csa td pm hv sc ta))
@@ -34,6 +36,16 @@
       (cons (substring (car h0) 1)
             (cdr h0))))
   (define body
+    (for/fold ((lt 0)
+               (res #f)
+               #:result res)
+              ((row (in-list (cdr lst)))
+               #:when (and (= (length row)
+                              (length head))
+                           (>= (string->number (car (reverse row))) lt)))
+      (values (string->number (car (reverse row)))
+              row)))
+  #;(define body
     (for/last ((b0 (in-list (cdr lst)))
                #:when (= (length b0) (length head)))
       b0))
@@ -83,18 +95,6 @@
 (define results
   (for/list ((dirname (in-list dirnames)))
     (process-benchmark-results dirname)))
-
-#;(plot
- (cons
-  (tick-grid)
-  (for/list ((res (in-list results))
-             (x (in-naturals)))
-    (box-and-whisker
-     (car res)
-     #:x x)))
- #:x-label "Genome Size"
- #:y-label "Running Time [s]"
- #:y-min 0)
 
 (define-values (tstats mstats pstats cstats)
   (for/lists (a b c d)
