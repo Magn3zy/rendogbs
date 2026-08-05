@@ -13,19 +13,19 @@ with gene and transposable element annotations. Multiple enzyme combinations
 can be evaluated side by side, enabling fast comparison of
 candidate combinations before committing to a wet-lab protocol.
 
-- Predicts and evaluates restriction fragments for any of **14,040 offered 
-  ddRAD enzyme combinations** (171 supported enzymes)
+- Predicts and evaluates restriction fragments for any of **14,040 offered
+  enzyme combinations** (171 supported enzymes)
 - Reports fragment abundance, length distribution, and GC composition
 - Optional gene (GFF/GTF) and transposable element (RepeatMasker/EDTA/TETools) 
   annotation overlap
 - Compares multiple enzyme combinations in a single run
 - Fully containerized (Docker or Apptainer formerly Singularity) for reproducible, 
   platform-independent results
-- HPC-ready — supports PBS scheduler
+- HPC-support — supports PBS scheduler
 - Modular, CSV-based intermediate outputs for transparency and easy 
   downstream reuse
 - **Fully automated analysis and plotting** — results are ready to browse 
-  as TSV tables (Excel-ready) and as auto-generated figures
+  as TSV tables (for Excel) and as auto-generated figures
 
 For more detailed informations see: [`Core_Architecture.md`](./Core_Architecture.md) and 
 [`wrapper_architecture.md`](./wrapper_architecture.md).
