@@ -10,7 +10,7 @@ produced by a chosen enzyme combination, filters them by the fragment size
 window used in your library preparation protocol, and reports fragment 
 abundance, length distribution, GC composition, and (optionally) overlap 
 with gene and transposable element annotations. Multiple enzyme combinations 
-can be evaluated side by side, enabling fast comparison of
+can be evaluated in one run, enabling fast comparison of
 candidate combinations before committing to a wet-lab protocol.
 
 - Predicts and evaluates restriction fragments for any of **14,040 offered
@@ -22,7 +22,7 @@ candidate combinations before committing to a wet-lab protocol.
 - Fully containerized (Docker or Apptainer formerly Singularity) for reproducible, 
   platform-independent results
 - HPC-support — supports PBS scheduler
-- Modular, CSV-based intermediate outputs for transparency and easy 
+- Modular, CSV-based intermediate outputs for 
   downstream reuse
 - **Fully automated analysis and plotting** — results are ready to browse 
   as TSV tables (for Excel) and as auto-generated figures
@@ -39,6 +39,12 @@ Requirements
 
 Building / Installation
 -----------------------
+
+Clone the repository and move into it:
+```sh
+   git clone https://github.com/Magn3zy/rendogbs.git
+   cd rendogbs
+```
 
 To build the Docker image locally, just type:
 
@@ -210,11 +216,12 @@ These two options are equivalent.
 Argument guide
 --------------
 
-> **Note on thread count:** Parallelization is performed per enzyme combination. 
+> [!TIP]
+> Parallelization is performed per enzyme combination. 
 > Setting `--parallel` higher than the number of combinations you are 
 > running will not speed up the run. 
-> For best performance, set the thread count to be equal or alternatively less than the 
-> number of combinations in the current run.
+> For best performance, set the thread count to be equal or 
+> alternatively less than the number of combinations in the run.
 
 
 ### Getting help
@@ -230,15 +237,22 @@ Rendogbs ships with three separate help commands, depending on what you need:
 - `--fast-combinations` — list of common running enzyme 
   combinations used by `--combinations fast` (the default).
 
+```bash
+sh rendogbs.sh --help
+sh rendogbs.sh --enzymes
+sh rendogbs.sh --fast-combinations
+```
+
 ### Allowed enzyme combinations
 
 Rendogbs supports **14,040 valid enzyme combinations**. Since this is a ddRAD 
 tool, two restrictions apply when selecting a custom combination:
 
-- **No self-combinations** — an enzyme cannot be paired with itself.
-- **No nested recognition sites** — pairs where one enzyme's recognition site 
-  fully contains the other's (e.g. *MseI* `TTAA` contained within *AseI* 
-  `ATTAAT`) are filtered out to avoid nested cutting patterns.
+> [!WARNING]
+> - **No self-combinations** — an enzyme cannot be paired with itself.
+> - **No nested recognition sites** — pairs where one enzyme's recognition site 
+>   fully contains the other's (e.g. *MseI* `TTAA` contained within *AseI* 
+>   `ATTAAT`) are filtered out to avoid nested cutting patterns.
 
 Rendogbs validates all combinations supplied via `--combinations-file` and 
 automatically filters out invalid ones (self-combinations or nested 
@@ -280,12 +294,19 @@ HELP
 --fast-combinations       Show fast combinations used in this pipeline
 ```
 
-Architecture diagram
---------------------
-![Architecture diagram](architecture_diagram.png)
-
 
 Resource requirements & benchmarking
 ------------------------------------
 
-TODO
+Benchmarking was done on following servers:
+
+- (i) Intel S2600WTT, 2 × Intel Xeon E5-2620 v3 (12 cores / 24 threads, 2,40–3,20 GHz), 192 GB DDR4, HDD
+- (ii) AMD RYZEN AI MAX+ 395w/ Radeon 8060S, 1 × AMD RYZEN AI MAX+ (16 cores / 32 threads, 3,00–5,10 GHz), 128 GB LPDDR5, WD_BLACK SN850X
+
+Results were obtained with 23 combinations running in parallel argument `--paralel 23 --combinations fast` on the following genomes: *Prunus persica* (227.4 Mb), *Panicum miliaceum* (834.7 Mb), *Camellia sinensis* var. *assamica* (3.1 Gb), *Hordeum vulgare* (4.2 Gb), *Secale cereale* (6.7 Gb), *Triticum turgidum* subsp. *durum* (10.5 Gb), and *Triticum aestivum* (14.6 Gb). Each run was benchmarked 100 times using benchmark.sh. Raw data were processed with scripts in the [`performance`](performance) folder and are made available. You can reduce RAM requirements by using less combinations in one run.
+
+![Benchmarking results](performance/graph_function.png)
+
+Architecture diagram
+--------------------
+![Architecture diagram](architecture_diagram.png)
