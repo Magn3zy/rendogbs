@@ -1,7 +1,7 @@
 rendogbs pipeline
 =================
 
-**Rendogbs** is a reproducible pipeline for designing and evaluating 
+**rendogbs** is a reproducible pipeline for designing and evaluating 
 restriction enzyme combinations for double-digest RAD sequencing (ddRAD) 
 library preparation.
 
@@ -21,10 +21,10 @@ candidate combinations before committing to a wet-lab protocol.
 - Compares multiple enzyme combinations in a single run
 - Fully containerized (Docker or Apptainer formerly Singularity) for reproducible, 
   platform-independent results
-- HPC-support — supports PBS scheduler
+- HPC-support - supports PBS scheduler
 - Modular, CSV-based intermediate outputs for 
   downstream reuse
-- **Fully automated analysis and plotting** — results are ready to browse 
+- **Fully automated analysis and plotting** - results are ready to browse 
   as TSV tables (for Excel) and as auto-generated figures
 
 For more detailed informations see: [`Core_Architecture.md`](./Core_Architecture.md) and 
@@ -232,7 +232,7 @@ Rendogbs ships with three separate help commands, depending on what you need:
   file structure used by the pipeline).
 - `--enzymes` — full list of supported restriction enzymes (171), needed if 
   you want to build your own custom enzyme combination via `--combinations-file`. 
-  Use the exact names listed here when specifying custom combinations — we've 
+  Use the exact names listed here when specifying custom combinations - we've 
   tried to use the most common/recognizable name for each enzyme.
 - `--fast-combinations` — list of common running enzyme 
   combinations used by `--combinations fast` (the default).
@@ -249,14 +249,14 @@ Rendogbs supports **14,040 valid enzyme combinations**. Since this is a ddRAD
 tool, two restrictions apply when selecting a custom combination:
 
 > [!WARNING]
-> - **No self-combinations** — an enzyme cannot be paired with itself.
-> - **No nested recognition sites** — pairs where one enzyme's recognition site 
+> - **No self-combinations** - an enzyme cannot be paired with itself.
+> - **No nested recognition sites** - pairs where one enzyme's recognition site 
 >   fully contains the other's (e.g. *MseI* `TTAA` contained within *AseI* 
 >   `ATTAAT`) are filtered out to avoid nested cutting patterns.
 
 Rendogbs validates all combinations supplied via `--combinations-file` and 
 automatically filters out invalid ones (self-combinations or nested 
-recognition sites — see above). If no valid combinations remain after 
+recognition sites - see above). If no valid combinations remain after 
 filtering, the pipeline will end. Check `--enzymes` for the full list of supported 
 enzymes and their names before constructing your own combinations.
 
@@ -266,7 +266,7 @@ REQUIRED
 --ref            <file>   Reference FASTA (.fa / .fasta / .fa.gz)
 --workdir        <dir>    Working directory
 --parallel       <int>    Combinations processed in parallel per batch, don't use more threads than combinations
---size           <range>  Fragment size window used in library, e.g. 200-400 (both inclusive).
+--size           <range>  Fragment size window used in library, e.g. 200-400 (both inclusive)
                           Standard 100 bp bins (0-99 .. 900-999 + >=1000) are
                           always reported; filtered.csv retains only fragments
                           within --size-range.
@@ -274,10 +274,10 @@ REQUIRED
                           per-chromosome plots (default: 10)
 
 COMBINATIONS (fast/custom)
---combinations            fast      (default most used combinations from literature)
+--combinations            fast      default most used combinations from literature
                                     you don't need to specify this argument
---combinations            custom    (specify combinations yourself)
---combinations-file       <file>    (specify combinations your csv file) 
+--combinations            custom    specify combinations yourself
+--combinations-file       <file>    specify combinations your csv file
                                     csv formating: header line - enzyme_a,enzyme_b, refer to enzyme list
 
 ANNOTATION (optional)
