@@ -231,7 +231,7 @@ When `--qsub` is used, the value of `--parallel` option is used to
 also request given number of cores using the `-l ncpus=XX` option. See
 your PBS installation documentation for more information.
 
-Currently only the `--signularity`/`--apptainer` variant is supported
+Currently only the `--singularity`/`--apptainer` variant is supported
 under PBS:
 
 ```sh
