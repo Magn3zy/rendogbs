@@ -213,6 +213,41 @@ singularity run \
 These two options are equivalent.
 
 
+### Running under PBS Workload Manager
+
+The wrapper readily supports running the workflow under the
+[OpenPBS](https://openpbs.org/) workload manager. See the `--help`
+option for related command-line arguments:
+
+```
+PBS SUPPORT
+  --qsub                    Do not run directly but submit as PBS job using qsub
+  --limits|-l     <limits>  Specify arbitrary PBS job limits (typically mem=XXgb)
+  --interactive|-I          Run as interactive PBS job
+  --name|-N         <name>  Specify PBS job name (defaults to rendogbs)
+```
+
+When `--qsub` is used, the value of `--parallel` option is used to
+also request given number of cores using the `-l ncpus=XX` option. See
+your PBS installation documentation for more information.
+
+Currently only the `--signularity`/`--apptainer` variant is supported
+under PBS:
+
+```sh
+sh rendogbs.sh \
+  --qsub \
+  --limits mem=16gb \
+  --singularity \
+  --ref ./GCF_000001735.3_TAIR10_genomic.fna.gz \
+  --workdir ./run2 \
+  --parallel 5 \
+  --size 200-400
+```
+
+The wrapper takes care of expanding any user paths used to ensure they
+can be resolved on the worker nodes.
+
 Argument guide
 --------------
 
