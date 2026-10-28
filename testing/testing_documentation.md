@@ -163,7 +163,7 @@ Generates a FASTA file of the predicted fragment sequences
 
 ### `rendogbs.R`
 
-TODO - Vašek
+Generates plot from individual csv files in subdirectories of testing directory (individual species) as function of coverage per predicted fragments and percentage of predicted fragments sequenced.
 
 ## Requirements
 
